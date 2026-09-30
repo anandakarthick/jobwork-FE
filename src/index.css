@@ -1,0 +1,182 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Default accent (indigo-blue). Overridden at runtime by the theme preset. */
+  --brand-50: 238 244 255;
+  --brand-100: 217 230 255;
+  --brand-200: 188 211 255;
+  --brand-300: 143 181 255;
+  --brand-400: 91 141 250;
+  --brand-500: 59 111 224;
+  --brand-600: 47 89 189;
+  --brand-700: 38 74 156;
+  --brand-800: 35 63 128;
+  --brand-900: 32 56 107;
+}
+
+@layer base {
+  html {
+    font-family: theme('fontFamily.sans');
+  }
+  body {
+    @apply bg-slate-100 text-slate-700 antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Typography scale — used everywhere so headings stay consistent. */
+  h1 {
+    @apply text-xl font-semibold tracking-tight text-slate-900;
+  }
+  h2 {
+    @apply text-base font-semibold tracking-tight text-slate-900;
+  }
+  h3 {
+    @apply text-sm font-semibold text-slate-800;
+  }
+
+  /* ---------- "Thinking" indicator ---------- */
+  /* Each word of a status phrase rises into place, staggered by the component. */
+  @keyframes word-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.35em);
+      filter: blur(2px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+      filter: blur(0);
+    }
+  }
+  .word-in {
+    animation: word-in 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  /* A soft light sweeping across the active phrase. */
+  @keyframes text-shimmer {
+    from {
+      background-position: 200% center;
+    }
+    to {
+      background-position: -200% center;
+    }
+  }
+  .text-shimmer {
+    background-image: linear-gradient(
+      90deg,
+      currentColor 0%,
+      currentColor 40%,
+      rgb(var(--brand-400)) 50%,
+      currentColor 60%,
+      currentColor 100%
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: text-shimmer 2.4s linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .word-in,
+    .text-shimmer {
+      animation: none;
+    }
+    .text-shimmer {
+      -webkit-text-fill-color: currentColor;
+      background-image: none;
+    }
+  }
+
+  /* Slim, unobtrusive scrollbars. */
+  ::-webkit-scrollbar {
+    @apply h-2 w-2;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-slate-300;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400;
+  }
+}
+
+@layer components {
+  /* ---------- Buttons ---------- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition
+      focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .btn-primary {
+    @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-700 focus:ring-brand-200;
+  }
+  .btn-ghost {
+    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-200;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white shadow-sm hover:bg-red-700 focus:ring-red-200;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  /* ---------- Form controls ---------- */
+  .input {
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm
+      outline-none transition placeholder:text-slate-400
+      focus:border-brand-500 focus:ring-2 focus:ring-brand-100;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-slate-700;
+  }
+
+  /* ---------- Cards ---------- */
+  .card {
+    @apply rounded-xl border border-slate-200 bg-white shadow-card;
+  }
+  .card-header {
+    @apply flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4;
+  }
+  .card-title {
+    @apply text-sm font-semibold text-slate-900;
+  }
+  .card-body {
+    @apply p-5;
+  }
+
+  /* ---------- Tables ---------- */
+  .table {
+    @apply w-full border-collapse text-sm;
+  }
+  .table thead th {
+    @apply border-b border-slate-200 bg-slate-50 px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500;
+  }
+  .table tbody td {
+    @apply border-b border-slate-100 px-5 py-3 align-middle text-slate-700;
+  }
+  .table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  .table tbody tr {
+    @apply transition-colors hover:bg-slate-50/70;
+  }
+
+  /* ---------- Badges ---------- */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+  .badge-gray {
+    @apply badge bg-slate-100 text-slate-600;
+  }
+  .badge-green {
+    @apply badge bg-emerald-50 text-emerald-700;
+  }
+  .badge-amber {
+    @apply badge bg-amber-50 text-amber-700;
+  }
+  .badge-blue {
+    @apply badge bg-brand-50 text-brand-700;
+  }
+  .badge-red {
+    @apply badge bg-red-50 text-red-700;
+  }
+}
