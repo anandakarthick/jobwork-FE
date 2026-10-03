@@ -28,6 +28,8 @@ import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Settings from './pages/settings/Settings';
+import ChangePassword from './pages/ChangePassword';
+import DialogHost from './components/ui/Dialog';
 
 export default function App() {
   const dispatch = useAppDispatch();
@@ -50,6 +52,8 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <SettingsProvider>
+          {/* App-wide confirm / alert dialogs (replaces window.confirm / alert). */}
+          <DialogHost />
           <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -87,6 +91,7 @@ export default function App() {
               {/* Any signed-in user can open Settings — only their Profile shows unless
                   they have the relevant permissions for the admin sections. */}
               <Route path="/settings" element={<Settings />} />
+              <Route path="/change-password" element={<ChangePassword />} />
             </Route>
           </Route>
 

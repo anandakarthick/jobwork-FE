@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   deleteCompany,
@@ -13,20 +12,13 @@ import { formatDate } from '../../lib/format';
 import { useSettings } from '../../context/SettingsContext';
 import { useAppSelector } from '../../store/hooks';
 import type { BrandPrompt, Company, ProductDocument } from '../../types';
-import PageHeader from '../../components/ui/PageHeader';
+import { DetailField, DetailHero, Empty } from '../../components/ui/Detail';
+import { EditIcon } from '../../components/icons';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import BrandFiles, { toExistingFiles } from '../../components/ui/BrandFiles';
 import BrandPrompts, { toPromptRows } from '../../components/ui/BrandPrompts';
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className="mt-1 text-sm text-slate-800">{children}</dd>
-    </div>
-  );
-}
+import { confirmDialog } from '../../components/ui/Dialog';
 
 export default function CompanyView() {
   const { id } = useParams();
@@ -59,7 +51,7 @@ export default function CompanyView() {
     void loadDocs();
     listBrandPrompts(id)
       .then(setPrompts)
-      .catch((err) => setError(apiErrorMessage(err, 'Could not load keyword prompts')));
+      .catch((err) => setError(apiErrorMessage(err, 'Could not load rules')));
   }, [id, loadDocs]);
 
   // When the app-level watcher reports a file here finished training, reload so
@@ -95,7 +87,14 @@ export default function CompanyView() {
   };
 
   const handleDelete = async () => {
-    if (!company || !window.confirm(`Delete brand "${company.name}"?`)) return;
+    if (!company) return;
+    if (
+      !(await confirmDialog({
+        title: 'Delete brand',
+        message: `Delete brand "${company.name}"? Its rules and reference files are removed too.`,
+      }))
+    )
+      return;
     try {
       await deleteCompany(company.id);
       navigate('/companies', { replace: true });
@@ -106,8 +105,19 @@ export default function CompanyView() {
 
   return (
     <div>
-      <PageHeader
-        title={loading ? 'Brand' : (company?.name ?? 'Brand')}
+      <DetailHero
+        name={loading ? 'Brand' : (company?.name ?? 'Brand')}
+        subtitle="Brand"
+        meta={
+          company && (
+            <>
+              <Badge tone={company.status === 'ACTIVE' ? 'green' : 'gray'}>{company.status}</Badge>
+              <Badge tone="blue">{docs.length} reference file{docs.length === 1 ? '' : 's'}</Badge>
+              <Badge tone="amber">{prompts.length} rule{prompts.length === 1 ? '' : 's'}</Badge>
+              <span>Created {formatDate(company.createdAt, settings.general.dateFormat)}</span>
+            </>
+          )
+        }
         actions={
           <>
             <button type="button" className="btn-ghost" onClick={() => navigate('/companies')}>
@@ -120,9 +130,10 @@ export default function CompanyView() {
                 </button>
                 <button
                   type="button"
-                  className="btn-ghost"
+                  className="btn-primary"
                   onClick={() => navigate(`/companies/${company.id}/edit`)}
                 >
+                  <EditIcon className="h-4 w-4" />
                   Edit
                 </button>
                 <button type="button" className="btn-danger" onClick={handleDelete}>
@@ -135,37 +146,30 @@ export default function CompanyView() {
       />
 
       {error && (
-        <div className="mb-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="mb-6 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
       <Card>
-        <CardHeader
-          title="Brand details"
-          action={
-            company && (
-              <Badge tone={company.status === 'ACTIVE' ? 'green' : 'gray'}>
-                {company.status}
-              </Badge>
-            )
-          }
-        />
+        <CardHeader title="Brand details" />
         <CardBody>
           {loading && <p className="py-8 text-center text-slate-400">Loading…</p>}
           {!loading && company && (
-            <dl className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="Brand name">{company.name}</Field>
-              <Field label="Status">
-                <Badge tone={company.status === 'ACTIVE' ? 'green' : 'gray'}>
-                  {company.status}
-                </Badge>
-              </Field>
-              <Field label="Created by">{company.createdBy?.name ?? '—'}</Field>
-              <Field label="Created at">{formatDate(company.createdAt, settings.general.dateFormat)}</Field>
-              <div className="sm:col-span-2 lg:col-span-4">
-                <Field label="Description">
-                  {company.description || <span className="text-slate-400">—</span>}
-                </Field>
-              </div>
+            <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <DetailField label="Brand name">{company.name}</DetailField>
+              <DetailField label="Status">
+                <Badge tone={company.status === 'ACTIVE' ? 'green' : 'gray'}>{company.status}</Badge>
+              </DetailField>
+              <DetailField label="Created by">{company.createdBy?.name ?? <Empty />}</DetailField>
+              <DetailField label="Created at">
+                {formatDate(company.createdAt, settings.general.dateFormat)}
+              </DetailField>
+              <DetailField label="Description" className="sm:col-span-2 lg:col-span-4">
+                {company.description ? (
+                  <span className="whitespace-pre-wrap">{company.description}</span>
+                ) : (
+                  <Empty />
+                )}
+              </DetailField>
             </dl>
           )}
         </CardBody>
@@ -174,9 +178,9 @@ export default function CompanyView() {
       {!loading && company && (
         <div className="mt-6">
           <Card>
-            <CardHeader title="Keyword prompts" />
+            <CardHeader title="Rules" />
             <CardBody>
-              <BrandPrompts rows={toPromptRows(prompts)} readOnly />
+              <BrandPrompts companyId={company?.id} rows={toPromptRows(prompts)} readOnly />
             </CardBody>
           </Card>
         </div>

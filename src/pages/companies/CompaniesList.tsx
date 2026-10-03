@@ -11,7 +11,9 @@ import type { Company, CompanyStatus, Paginated } from '../../types';
 import PageHeader from '../../components/ui/PageHeader';
 import DataTable, { type Column } from '../../components/ui/Table';
 import Badge from '../../components/ui/Badge';
+import Avatar from '../../components/ui/Avatar';
 import { FileIcon, PlusIcon, SearchIcon } from '../../components/icons';
+import { confirmDialog } from '../../components/ui/Dialog';
 
 type Filter = 'ALL' | CompanyStatus;
 const FILTERS: Filter[] = ['ALL', 'ACTIVE', 'INACTIVE'];
@@ -64,7 +66,13 @@ export default function CompaniesList() {
 
   const handleDelete = async (e: React.MouseEvent, c: Company) => {
     e.stopPropagation();
-    if (!window.confirm(`Delete brand "${c.name}"?`)) return;
+    if (
+      !(await confirmDialog({
+        title: 'Delete brand',
+        message: `Delete brand "${c.name}"? Its rules and reference files are removed too.`,
+      }))
+    )
+      return;
     try {
       await deleteCompany(c.id);
       await load();
@@ -77,7 +85,12 @@ export default function CompaniesList() {
     {
       key: 'name',
       header: 'Company',
-      render: (c) => <span className="font-medium text-slate-800">{c.name}</span>,
+      render: (c) => (
+        <span className="flex items-center gap-3">
+          <Avatar name={c.name} size="sm" />
+          <span className="font-medium text-slate-800">{c.name}</span>
+        </span>
+      ),
     },
     {
       key: 'description',
@@ -199,7 +212,7 @@ export default function CompaniesList() {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="mb-6 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
       <DataTable

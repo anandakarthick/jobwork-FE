@@ -1,5 +1,10 @@
-import { useRef, useState } from 'react';
-import { downloadBrandPriceList, downloadBrandPriceListText } from '../../api/companies';
+import { useEffect, useRef, useState } from 'react';
+import {
+  downloadBrandPriceList,
+  downloadBrandPriceListText,
+  listBrandPriceLists,
+  trainBrandPriceListIntoClaude,
+} from '../../api/companies';
 import { ingestPriceListDocument } from '../../api/priceList';
 import { apiErrorMessage } from '../../lib/api';
 import { formatDate } from '../../lib/format';
@@ -8,6 +13,7 @@ import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { pollIngestJobs, registerIngest, pushToast } from '../../store/ingestJobsSlice';
 import type { IngestStatus, ProductDocument } from '../../types';
 import Badge from './Badge';
+import { confirmDialog } from './Dialog';
 import { DownloadIcon, FileIcon, PlusIcon, RefreshIcon, TrashIcon } from '../icons';
 
 const ACCEPTED = '.pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.csv,.txt';
@@ -71,6 +77,8 @@ interface Props {
   companyId?: number;
   existing: ExistingFile[];
   added?: NewFile[];
+  /** Shown in a toolbar above the table, with the "Add file" button beside it. */
+  title?: string;
   /** View pages pass true: no add/remove, and the Train boxes are locked. */
   readOnly?: boolean;
   onExistingChange?: (next: ExistingFile[]) => void;
@@ -87,6 +95,7 @@ export default function BrandFiles({
   companyId,
   existing,
   added = [],
+  title,
   readOnly = false,
   onExistingChange,
   onAddedChange,
@@ -94,11 +103,60 @@ export default function BrandFiles({
   const dispatch = useAppDispatch();
   const { settings } = useSettings();
   const jobsById = useAppSelector((s) => s.ingestJobs.byId);
+  // Claude engine: "trained" means the file is in Claude (has a file id) — the
+  // Training column shows that state and "Train again" re-uploads it.
+  const claudeEngine = useAppSelector((s) => s.llmStatus.status?.quoteEngine) === 'claude';
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const patchExisting = (docId: number, patch: Partial<ExistingFile>) =>
     onExistingChange?.(existing.map((e) => (e.doc.id === docId ? { ...e, ...patch } : e)));
+
+  // While any file is uploading to Claude, refresh the rows every few seconds so
+  // the status (and the file id Claude returned) appears without a reload.
+  const uploading = existing.some((e) => e.doc.aiStatus === 'PROCESSING');
+  const existingRef = useRef(existing);
+  existingRef.current = existing;
+  useEffect(() => {
+    if (!uploading || companyId == null) return;
+    const id = window.setInterval(async () => {
+      try {
+        const fresh = await listBrandPriceLists(companyId);
+        const byId = new Map(fresh.map((d) => [d.id, d]));
+        onExistingChange?.(
+          existingRef.current.map((e) => {
+            const d = byId.get(e.doc.id);
+            return d ? { ...e, doc: { ...e.doc, ...d } } : e;
+          }),
+        );
+      } catch {
+        /* next tick */
+      }
+    }, 3000);
+    return () => window.clearInterval(id);
+  }, [uploading, companyId, onExistingChange]);
+
+  const trainClaude = async (doc: ProductDocument) => {
+    if (companyId == null) return;
+    const trained = doc.aiStatus === 'COMPLETED';
+    const ok = await confirmDialog({
+      title: trained ? 'Train file again' : 'Train file',
+      tone: 'primary',
+      confirmLabel: trained ? 'Train again' : 'Train',
+      message: trained
+        ? `Train "${doc.name || doc.fileName}" into Claude again? The copy in Claude is replaced and a new file id is issued.`
+        : `Train "${doc.name || doc.fileName}" into Claude? Its text is uploaded to Claude and the file id is kept here.`,
+    });
+    if (!ok) return;
+    setError('');
+    try {
+      const updated = await trainBrandPriceListIntoClaude(companyId, doc.id);
+      patchExisting(doc.id, { doc: { ...doc, ...updated } });
+      dispatch(pushToast({ tone: 'info', message: `Training started — “${doc.fileName}”.` }));
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not start training'));
+    }
+  };
   const patchAdded = (key: string, patch: Partial<NewFile>) =>
     onAddedChange?.(added.map((a) => (a.key === key ? { ...a, ...patch } : a)));
 
@@ -133,6 +191,13 @@ export default function BrandFiles({
   };
 
   const retrain = async (doc: ProductDocument) => {
+    const ok = await confirmDialog({
+      title: 'Train file again',
+      tone: 'primary',
+      confirmLabel: 'Train again',
+      message: `Train "${doc.name || doc.fileName}" again? Its catalogue rows are re-read from the file and replaced.`,
+    });
+    if (!ok) return;
     setError('');
     try {
       await ingestPriceListDocument(doc.id);
@@ -148,12 +213,27 @@ export default function BrandFiles({
 
   return (
     <div>
+      {(title || !readOnly) && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-slate-800">{title ?? ''}</h3>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="btn-primary btn-sm"
+            >
+              <PlusIcon className="h-4 w-4" />
+              Add file
+            </button>
+          )}
+        </div>
+      )}
       {error && (
         <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       )}
 
       {empty ? (
-        <p className="py-2 text-sm text-slate-400">No reference files added.</p>
+        <p className="py-2 text-sm text-slate-400">No reference files added yet.</p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200">
           <table className="min-w-full text-sm">
@@ -180,6 +260,7 @@ export default function BrandFiles({
                 const textChars = job?.textChars ?? doc.textChars ?? 0;
                 const textFailure = job?.textError ?? doc.textError ?? undefined;
                 const readByAi = (job?.textSource ?? doc.textSource) === 'AI';
+                const aiStatus: IngestStatus = doc.aiStatus ?? 'NOT_STARTED';
                 return (
                   <tr key={doc.id} className="border-b border-slate-100 last:border-0">
                     <td className="px-3 py-2">
@@ -247,6 +328,28 @@ export default function BrandFiles({
                     <td className="whitespace-nowrap px-3 py-2">
                       {e.remove ? (
                         <Badge tone="red">will be removed</Badge>
+                      ) : claudeEngine ? (
+                        // Claude engine: trained = uploaded to Claude and given a file id.
+                        <span
+                          title={
+                            aiStatus === 'FAILED'
+                              ? doc.aiError ?? undefined
+                              : aiStatus === 'COMPLETED'
+                                ? `Claude file id: ${doc.aiFileId ?? ''}${doc.aiTrainedAt ? ` · ${formatDate(doc.aiTrainedAt, settings.general.dateFormat)}` : ''}`
+                                : undefined
+                          }
+                        >
+                          <Badge tone={STATUS_TONE[aiStatus]}>
+                            {aiStatus === 'COMPLETED'
+                              ? `trained · text · ${(doc.aiFileChars ?? 0).toLocaleString()} chars${doc.aiPages ? ` · ${doc.aiPages} pages` : ''}`
+                              : STATUS_LABEL[aiStatus]}
+                          </Badge>
+                          {aiStatus === 'COMPLETED' && doc.aiFileId && (
+                            <span className="mt-0.5 block font-mono text-[10px] text-slate-400">
+                              {doc.aiFileId}
+                            </span>
+                          )}
+                        </span>
                       ) : (
                         <span title={status === 'FAILED' ? failure : undefined}>
                           <Badge tone={STATUS_TONE[status]}>
@@ -282,7 +385,20 @@ export default function BrandFiles({
                             <DownloadIcon className="h-4 w-4" />
                           </button>
                         )}
-                        {!readOnly && !e.remove && e.train && status !== 'NOT_STARTED' && (
+                        {/* Train again — Claude engine: re-upload to Claude; database engine: re-parse. */}
+                        {!readOnly && !e.remove && companyId != null && claudeEngine && (
+                          <button
+                            type="button"
+                            onClick={() => void trainClaude(doc)}
+                            disabled={aiStatus === 'PROCESSING'}
+                            className="text-slate-400 hover:text-brand-600 disabled:opacity-40"
+                            aria-label={`Train ${doc.fileName}${aiStatus === 'COMPLETED' ? ' again' : ''}`}
+                            title={aiStatus === 'COMPLETED' ? 'Train again (replaces the file in Claude)' : 'Train'}
+                          >
+                            <RefreshIcon className="h-4 w-4" />
+                          </button>
+                        )}
+                        {!readOnly && !e.remove && !claudeEngine && e.train && status !== 'NOT_STARTED' && (
                           <button
                             type="button"
                             onClick={() => void retrain(doc)}
@@ -378,14 +494,6 @@ export default function BrandFiles({
 
       {!readOnly && (
         <>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="btn-ghost btn-sm mt-3"
-          >
-            <PlusIcon className="h-4 w-4" />
-            Add file
-          </button>
           <input
             ref={fileInputRef}
             type="file"
@@ -395,10 +503,11 @@ export default function BrandFiles({
             onChange={(e) => addFiles(e.target.files)}
           />
           <p className="mt-2 text-xs text-slate-400">
-            PDF, image, Word or Excel. When you save, every file is read into text and stored with
-            the brand; a scan or an image has no text of its own, so it is read by the AI (this
-            uses API credit). Tick Train to also have the file read into the catalogue that Get
-            Quote matches against. Both run in the background after you save.
+            PDF, image, Word or Excel. With the <b>Claude knowledge</b> engine (Settings → API Keys)
+            save the file first, then click Train (↻): its text is trained into Claude and only the
+            file id Claude returns is kept here — nothing is parsed into the database. Removing a file
+            (or un-ticking Train) removes its copy from Claude. With the <b>database</b> engine, ticked
+            files are read into the catalogue when you save.
           </p>
         </>
       )}

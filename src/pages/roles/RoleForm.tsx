@@ -12,6 +12,8 @@ import { apiErrorMessage } from '../../lib/api';
 import type { PermissionGroup } from '../../types';
 import PageHeader from '../../components/ui/PageHeader';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
+import Avatar from '../../components/ui/Avatar';
+import Badge from '../../components/ui/Badge';
 
 export default function RoleForm() {
   const { id } = useParams();
@@ -98,7 +100,7 @@ export default function RoleForm() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <PageHeader
         title={isEdit ? 'Edit role' : 'New role'}
         subtitle="Choose exactly what this role can do."
@@ -110,9 +112,10 @@ export default function RoleForm() {
       />
 
       {error && (
-        <div className="mb-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="mb-6 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <Card>
         <CardHeader title="Role details" />
         {loading ? (
@@ -131,14 +134,15 @@ export default function RoleForm() {
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+              <label className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 px-3 py-2.5 text-sm ring-1 ring-inset ring-amber-100">
                 <input type="checkbox" checked={fullAccess} onChange={(e) => setFullAccess(e.target.checked)} />
                 <span className="font-medium text-slate-700">Full access</span>
-                <span className="text-slate-400">— grants every permission (superadmin)</span>
+                <span className="text-slate-500">— grants every permission (superadmin)</span>
               </label>
 
               {!fullAccess && (
                 <div className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
                   {groups.map((g) => {
                     const keys = g.permissions.map((p) => p.key);
                     const allOn = keys.every((k) => selected.has(k));
@@ -147,7 +151,16 @@ export default function RoleForm() {
                       (p) => !p.key.endsWith('.view') && selected.has(p.key),
                     );
                     return (
-                      <div key={g.module} className="rounded-lg border border-slate-200 p-3">
+                      <div
+                        key={g.module}
+                        className={`rounded-xl border p-3 transition-colors ${
+                          allOn
+                            ? 'border-brand-200 bg-brand-50/40'
+                            : keys.some((k) => selected.has(k))
+                              ? 'border-slate-200 bg-white'
+                              : 'border-slate-200 bg-slate-50/60'
+                        }`}
+                      >
                         <div className="mb-2 flex items-center justify-between">
                           <h3 className="text-sm font-semibold text-slate-800">{g.module}</h3>
                           <button
@@ -181,6 +194,7 @@ export default function RoleForm() {
                       </div>
                     );
                   })}
+                  </div>
                   <p className="text-xs text-slate-400">
                     {selected.size} of {allKeys.length} permissions selected
                   </p>
@@ -188,7 +202,7 @@ export default function RoleForm() {
               )}
             </CardBody>
 
-            <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
+            <div className="flex justify-end gap-2 rounded-b-2xl border-t border-slate-100 bg-slate-50/60 px-5 py-4">
               <button type="button" className="btn-ghost" onClick={() => navigate('/roles')}>
                 Cancel
               </button>
@@ -199,6 +213,55 @@ export default function RoleForm() {
           </form>
         )}
       </Card>
+
+      {/* Right: live summary of what the role grants. */}
+      <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+        <div className="card overflow-hidden">
+          <div className="relative h-16 bg-gradient-to-r from-rose-500/20 via-violet-500/15 to-brand-500/15" />
+          <div className="-mt-7 px-5 pb-5">
+            <Avatar name={name || 'Role'} size="lg" className="rounded-2xl ring-4 ring-white shadow-pop" />
+            <p className="mt-3 truncate text-base font-semibold text-slate-900">{name.trim() || 'New role'}</p>
+            <p className="truncate text-sm text-slate-500">{description.trim() || 'No description yet'}</p>
+            <div className="mt-3">
+              {fullAccess ? (
+                <Badge tone="amber">Full access · every permission</Badge>
+              ) : (
+                <Badge tone={selected.size ? 'green' : 'gray'}>
+                  {selected.size} of {allKeys.length} permissions
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {!fullAccess && (
+          <div className="card p-5">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">By module</p>
+            <ul className="mt-2 space-y-1.5">
+              {groups.map((g) => {
+                const n = g.permissions.filter((p) => selected.has(p.key)).length;
+                return (
+                  <li key={g.module} className="flex items-center justify-between text-sm">
+                    <span className={n ? 'text-slate-700' : 'text-slate-400'}>{g.module}</span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        n === g.permissions.length
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : n
+                            ? 'bg-brand-50 text-brand-700'
+                            : 'bg-slate-100 text-slate-400'
+                      }`}
+                    >
+                      {n}/{g.permissions.length}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </aside>
+      </div>
     </div>
   );
 }

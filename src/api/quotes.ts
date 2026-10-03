@@ -53,6 +53,10 @@ export interface Quote {
   messages: QuoteMessage[];
   /** Custom download name set from the chat ("rename the file to …"). */
   downloadName?: string | null;
+  /** Ids of the brand rules chosen for this chat; null = every trained rule (older chats). */
+  promptIds?: number[] | null;
+  /** The chosen rules resolved to names, for display. */
+  rules?: { id: number; name: string; brand: string }[];
   /** Feeder-grouped BOM (present for BOM-style quotes); the download is built
    *  from this, so the chat edits it. Loosely typed — only counted for display. */
   bomJson?: { feeders?: { items?: unknown[] }[] }[] | null;
@@ -67,6 +71,8 @@ export interface CreateQuoteInput {
   defaultDiscountPct?: number;
   /** The user's first chat message, sent along with the BOQ. */
   message?: string;
+  /** Ids of the brand rules (keyword prompts) to apply; omitted = all trained. */
+  promptIds?: number[];
   files: File[];
 }
 
@@ -79,13 +85,16 @@ export const createQuote = (input: CreateQuoteInput) => {
   if (input.defaultDiscountPct != null)
     form.append('defaultDiscountPct', String(input.defaultDiscountPct));
   if (input.message) form.append('message', input.message);
+  if (input.promptIds) form.append('promptIds', JSON.stringify(input.promptIds));
   input.files.forEach((f) => form.append('documents', f));
   return api.post<Quote>('/quotes', form).then((r) => r.data);
 };
 
-/** Rename a chat. */
-export const renameQuote = (id: number, title: string) =>
-  api.patch<Quote>(`/quotes/${id}`, { title }).then((r) => r.data);
+/** Change a chat's name, customer, brands (comma-joined) or selected rule ids. */
+export const updateQuote = (
+  id: number,
+  changes: { title?: string; customerId?: number; brand?: string; promptIds?: number[] },
+) => api.patch<Quote>(`/quotes/${id}`, changes).then((r) => r.data);
 
 export const deleteQuote = (id: number) => api.delete(`/quotes/${id}`);
 
@@ -112,6 +121,38 @@ export const listQuotes = (params: { customerId?: number; page?: number; limit?:
     .then((r) => r.data);
 
 export const getQuote = (id: number) => api.get<Quote>(`/quotes/${id}`).then((r) => r.data);
+
+/** The pipeline stages the server reports, in order. */
+export type ProgressStage =
+  | 'collect'
+  | 'read'
+  | 'extract'
+  | 'retrieve'
+  | 'match'
+  | 'price'
+  | 'assemble'
+  | 'save';
+export const PROGRESS_STAGES: ProgressStage[] = [
+  'collect',
+  'read',
+  'extract',
+  'retrieve',
+  'match',
+  'price',
+  'assemble',
+  'save',
+];
+
+export interface QuoteProgress {
+  status: QuoteStatus;
+  error: string | null;
+  /** The stage that is really running right now; null once the quote is done. */
+  progress: { stage: ProgressStage; detail: string | null; percent: number; updatedAt: string } | null;
+}
+
+/** Live generation progress — poll while the quote is PROCESSING. */
+export const getQuoteProgress = (id: number) =>
+  api.get<QuoteProgress>(`/quotes/${id}/progress`).then((r) => r.data);
 
 export const sendQuoteMessage = (id: number, content: string, files: File[] = []) => {
   const form = new FormData();

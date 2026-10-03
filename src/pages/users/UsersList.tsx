@@ -7,7 +7,9 @@ import type { ManagedUser, Paginated } from '../../types';
 import PageHeader from '../../components/ui/PageHeader';
 import DataTable, { type Column } from '../../components/ui/Table';
 import Badge from '../../components/ui/Badge';
+import Avatar from '../../components/ui/Avatar';
 import { PlusIcon, SearchIcon } from '../../components/icons';
+import { confirmDialog } from '../../components/ui/Dialog';
 
 export default function UsersList() {
   const navigate = useNavigate();
@@ -43,7 +45,7 @@ export default function UsersList() {
 
   const handleDelete = async (e: React.MouseEvent, u: ManagedUser) => {
     e.stopPropagation();
-    if (!window.confirm(`Delete user "${u.name}"?`)) return;
+    if (!(await confirmDialog({ title: 'Delete user', message: `Delete user "${u.name}"? This cannot be undone.` }))) return;
     try {
       await deleteUser(u.id);
       await load();
@@ -53,7 +55,16 @@ export default function UsersList() {
   };
 
   const columns: Column<ManagedUser>[] = [
-    { key: 'name', header: 'Name', render: (u) => <span className="font-medium text-slate-800">{u.name}</span> },
+    {
+      key: 'name',
+      header: 'Name',
+      render: (u) => (
+        <span className="flex items-center gap-3">
+          <Avatar name={u.name} size="sm" />
+          <span className="font-medium text-slate-800">{u.name}</span>
+        </span>
+      ),
+    },
     { key: 'email', header: 'Email', render: (u) => u.email },
     {
       key: 'role',
@@ -127,7 +138,7 @@ export default function UsersList() {
       />
 
       {error && (
-        <div className="mb-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="mb-6 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
       <DataTable

@@ -8,6 +8,7 @@ import PageHeader from '../../components/ui/PageHeader';
 import DataTable, { type Column } from '../../components/ui/Table';
 import Badge from '../../components/ui/Badge';
 import { FileIcon, PlusIcon, SearchIcon } from '../../components/icons';
+import { confirmDialog } from '../../components/ui/Dialog';
 
 export default function CategoriesList() {
   const navigate = useNavigate();
@@ -44,7 +45,7 @@ export default function CategoriesList() {
 
   const handleDelete = async (e: React.MouseEvent, category: ProductCategory) => {
     e.stopPropagation();
-    if (!window.confirm(`Delete category "${category.name}"?`)) return;
+    if (!(await confirmDialog({ title: 'Delete category', message: `Delete category "${category.name}"?` }))) return;
     try {
       await deleteCategory(category.id);
       await load();

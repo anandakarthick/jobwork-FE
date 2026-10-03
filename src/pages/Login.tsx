@@ -3,11 +3,10 @@ import type { FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiErrorMessage } from '../lib/api';
-import { BrandMark, useAppName } from '../components/ui/Brand';
+import AuthShell from '../components/AuthShell';
 
 export default function Login() {
   const { login } = useAuth();
-  const appName = useAppName();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? '/';
@@ -32,17 +31,13 @@ export default function Login() {
   };
 
   return (
-    <div className="grid min-h-screen place-items-center bg-slate-100 px-4">
-      <form onSubmit={handleSubmit} className="card w-full max-w-sm p-8">
-        <div className="mb-6 flex items-center gap-2.5">
-          <BrandMark className="h-9 w-9 text-base" />
-          <span className="text-lg font-semibold tracking-tight text-slate-900">{appName}</span>
-        </div>
-        <h1>Sign in</h1>
+    <AuthShell>
+      <form onSubmit={handleSubmit}>
+        <h1 className="text-2xl">Sign in</h1>
         <p className="mt-1 text-sm text-slate-500">Welcome back — please enter your details.</p>
 
         {error && (
-          <div className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+          <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
         )}
 
         <div className="mt-5">
@@ -81,6 +76,6 @@ export default function Login() {
           {submitting ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
-    </div>
+    </AuthShell>
   );
 }

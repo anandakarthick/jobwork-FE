@@ -150,7 +150,7 @@ export default function CompanyForm() {
       void dispatch(pollIngestJobs());
       navigate(`/companies/${saved.id}`, { replace: true });
     } catch (err) {
-      const what = promptsSaved ? 'files' : 'keyword prompts and files';
+      const what = promptsSaved ? 'files' : 'rules and files';
       const message = `The brand was saved, but its ${what} could not be updated: ${apiErrorMessage(err)}`;
       if (!isEdit) {
         const state: CarriedState = { error: message, prompts: promptsSaved ? undefined : prompts };
@@ -172,7 +172,7 @@ export default function CompanyForm() {
     <div>
       <PageHeader
         title={isEdit ? 'Edit brand' : 'New brand'}
-        subtitle={isEdit ? 'Update this brand’s details, prompts and files.' : 'Add a new brand.'}
+        subtitle={isEdit ? 'Update this brand’s details, rules and reference files.' : 'Add a new brand.'}
         actions={
           <button type="button" className="btn-ghost" onClick={() => navigate(-1)}>
             Back
@@ -181,35 +181,53 @@ export default function CompanyForm() {
       />
 
       {error && (
-        <div className="mb-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="mb-6 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
-      <Card>
-        <CardHeader title="Brand details" />
-        {loading ? (
+      {loading ? (
+        <Card>
           <CardBody className="py-16 text-center text-slate-400">Loading…</CardBody>
-        ) : (
-          <form onSubmit={handleSubmit}>
+        </Card>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <Card>
+            <CardHeader title="Brand details" />
             <CardBody>
               <CompanyFormFields value={form} onChange={setForm} />
-
-              <div className="mt-6">
-                <label className="label">Keyword prompts</label>
-                <BrandPrompts rows={prompts} onChange={setPrompts} />
-              </div>
-
-              <div className="mt-6">
-                <label className="label">Reference files</label>
-                <BrandFiles
-                  companyId={isEdit ? Number(id) : undefined}
-                  existing={existing}
-                  added={added}
-                  onExistingChange={setExisting}
-                  onAddedChange={setAdded}
-                />
-              </div>
             </CardBody>
-            <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
+          </Card>
+
+          {/* Each list card carries its own toolbar: title on the left, Add on the right. */}
+          <Card>
+            <CardBody>
+              <BrandPrompts
+                title="Rules"
+                companyId={isEdit ? Number(id) : undefined}
+                rows={prompts}
+                onChange={setPrompts}
+              />
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardBody>
+              <BrandFiles
+                title="Reference files"
+                companyId={isEdit ? Number(id) : undefined}
+                existing={existing}
+                added={added}
+                onExistingChange={setExisting}
+                onAddedChange={setAdded}
+              />
+            </CardBody>
+          </Card>
+
+          {/* Action bar */}
+          <div className="card sticky bottom-4 flex items-center justify-between gap-3 px-5 py-3">
+            <p className="text-xs text-slate-500">
+              Rules and files are saved together with the brand when you press Save.
+            </p>
+            <div className="flex items-center gap-2">
               <button type="button" className="btn-ghost" onClick={() => navigate(-1)}>
                 Cancel
               </button>
@@ -217,9 +235,9 @@ export default function CompanyForm() {
                 {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create brand'}
               </button>
             </div>
-          </form>
-        )}
-      </Card>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

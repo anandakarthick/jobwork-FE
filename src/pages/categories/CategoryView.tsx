@@ -9,6 +9,7 @@ import type { ProductCategory } from '../../types';
 import PageHeader from '../../components/ui/PageHeader';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
+import { confirmDialog } from '../../components/ui/Dialog';
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -38,7 +39,8 @@ export default function CategoryView() {
   }, [id]);
 
   const handleDelete = async () => {
-    if (!category || !window.confirm(`Delete category "${category.name}"?`)) return;
+    if (!category) return;
+    if (!(await confirmDialog({ title: 'Delete category', message: `Delete category "${category.name}"?` }))) return;
     try {
       await deleteCategory(category.id);
       navigate('/categories', { replace: true });

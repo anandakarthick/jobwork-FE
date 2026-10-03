@@ -73,7 +73,7 @@ export default function CustomerForm() {
       />
 
       {error && (
-        <div className="mb-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="mb-6 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
       <Card>
@@ -85,7 +85,7 @@ export default function CustomerForm() {
             <CardBody>
               <CustomerFormFields value={form} onChange={setForm} />
             </CardBody>
-            <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
+            <div className="flex justify-end gap-2 rounded-b-2xl border-t border-slate-100 bg-slate-50/60 px-5 py-4">
               <button type="button" className="btn-ghost" onClick={() => navigate(-1)}>
                 Cancel
               </button>

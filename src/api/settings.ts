@@ -7,6 +7,10 @@ export interface LlmSettings {
   provider: LlmProviderId;
   openaiModel: string;
   anthropicModel: string;
+  /** "database" = parsed price-list rows; "claude" = brand files trained into Claude. */
+  quoteEngine: QuoteEngine;
+  /** Anthropic workspace id ("wrkspc_…") — needed by the Files API with an org-wide key. */
+  anthropicWorkspaceId?: string;
   openaiKeySet: boolean;
   anthropicKeySet: boolean;
   openaiBalance: number | null;
@@ -15,10 +19,14 @@ export interface LlmSettings {
   updatedAt: string | null;
 }
 
+export type QuoteEngine = 'database' | 'claude';
+
 export interface UpdateLlmPayload {
   provider: LlmProviderId;
   openaiModel?: string;
   anthropicModel?: string;
+  quoteEngine?: QuoteEngine;
+  anthropicWorkspaceId?: string;
   openaiApiKey?: string;
   anthropicApiKey?: string;
   clearOpenaiKey?: boolean;
@@ -37,6 +45,8 @@ export const updateLlmSettings = (payload: UpdateLlmPayload) =>
 export interface LlmStatus {
   provider: LlmProviderId;
   model: string | null;
+  /** "database" or "claude" — how Get Quote finds products. */
+  quoteEngine?: QuoteEngine;
   keySet: boolean;
   balance: number | null;
   /** Estimated USD spent since the balance was set. */
@@ -128,29 +138,21 @@ export const getLetterheadPresets = () =>
 export const updateLetterhead = (payload: UpdateLetterheadPayload) =>
   api.put<Letterhead>('/settings/letterhead', payload).then((r) => r.data);
 
-// ---------- Quote prompt snippets (appended to the extraction prompt) ----------
-export interface QuotePrompt {
-  id: number;
+/** An editable AI prompt the quote pipeline runs with (stored in the database). */
+export interface SystemPrompt {
+  key: string;
   name: string;
+  description: string;
   content: string;
-  enabled: boolean;
-  createdAt: string;
   updatedAt: string;
-}
-export interface QuotePromptPayload {
-  name: string;
-  content: string;
-  enabled?: boolean;
+  /** True while the stored text still equals the shipped default. */
+  isDefault: boolean;
 }
 
-export const listQuotePrompts = () =>
-  api.get<QuotePrompt[]>('/settings/quote-prompts').then((r) => r.data);
+export const listSystemPrompts = () =>
+  api.get<SystemPrompt[]>('/settings/prompts').then((r) => r.data);
+export const updateSystemPrompt = (key: string, content: string) =>
+  api.put<SystemPrompt>(`/settings/prompts/${encodeURIComponent(key)}`, { content }).then((r) => r.data);
+export const resetSystemPrompt = (key: string) =>
+  api.post<SystemPrompt>(`/settings/prompts/${encodeURIComponent(key)}/reset`).then((r) => r.data);
 
-export const createQuotePrompt = (payload: QuotePromptPayload) =>
-  api.post<QuotePrompt>('/settings/quote-prompts', payload).then((r) => r.data);
-
-export const updateQuotePrompt = (id: number, payload: Partial<QuotePromptPayload>) =>
-  api.put<QuotePrompt>(`/settings/quote-prompts/${id}`, payload).then((r) => r.data);
-
-export const deleteQuotePrompt = (id: number) =>
-  api.delete(`/settings/quote-prompts/${id}`).then(() => undefined);

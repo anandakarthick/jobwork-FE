@@ -3,3 +3,6 @@ dist/
 .env
 *.log
 tsconfig.tsbuildinfo
+
+# local archives
+*.zip

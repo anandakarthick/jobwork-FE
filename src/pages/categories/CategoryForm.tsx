@@ -82,7 +82,7 @@ export default function CategoryForm() {
             </CardBody>
 
             {/* Save — last. */}
-            <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
+            <div className="flex justify-end gap-2 rounded-b-2xl border-t border-slate-100 bg-slate-50/60 px-5 py-4">
               <button type="button" className="btn-ghost" onClick={() => navigate(-1)}>
                 Cancel
               </button>

@@ -82,6 +82,15 @@ export interface ProductDocument {
   /** "FILE" = read straight from the file; "AI" = a scan/image read by the AI. */
   textSource?: string | null;
   textError?: string | null;
+  /** Knowledge-in-Claude: the id Anthropic returned for this file ("file_…"). */
+  aiFileId?: string | null;
+  aiStatus?: IngestStatus;
+  aiError?: string | null;
+  aiFileChars?: number | null;
+  aiTrainedAt?: string | null;
+  /** "pdf" = the original PDF is in Claude (plus its text); "text" = text only. */
+  aiFileKind?: 'pdf' | 'text' | null;
+  aiPages?: number | null;
 }
 
 /** A brand's keyword prompt — sent to the AI for that brand's quotes when trained. */
@@ -93,6 +102,11 @@ export interface BrandPrompt {
   train: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Knowledge-in-Claude: the Files API id of this rule's text and its status. */
+  aiFileId?: string | null;
+  aiStatus?: IngestStatus;
+  aiError?: string | null;
+  aiTrainedAt?: string | null;
 }
 
 export interface ProductCategory {

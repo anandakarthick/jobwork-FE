@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { fetchLlmStatus } from '../store/llmStatusSlice';
-import { BellIcon, LogoutIcon, MenuIcon, SearchIcon, SparklesIcon } from './icons';
+import { LockIcon, LogoutIcon, MenuIcon, SlidersIcon, SparklesIcon } from './icons';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -49,27 +49,17 @@ export default function Header({ onMenuClick }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-slate-200 bg-white px-4 shadow-header lg:px-6">
+    <header className="sticky top-0 z-20 mx-auto flex h-16 w-full max-w-7xl items-center gap-4 px-4 lg:px-8">
       <button
         type="button"
         onClick={onMenuClick}
-        className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 lg:hidden"
+        className="grid h-9 w-9 place-items-center rounded-full border border-slate-200/80 bg-white/80 text-slate-500 shadow-sm backdrop-blur hover:bg-slate-100 lg:hidden"
         aria-label="Open menu"
       >
         <MenuIcon />
       </button>
 
-      {/* Search */}
-      <div className="relative hidden max-w-md flex-1 sm:block">
-        <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <input
-          type="search"
-          placeholder="Search…"
-          className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100"
-        />
-      </div>
-
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/80 p-1 shadow-sm backdrop-blur">
         {/* Active AI provider + model + balance. Not a link — informational only. */}
         {llm && (
           <div
@@ -85,10 +75,10 @@ export default function Header({ onMenuClick }: HeaderProps) {
                       )} = ${formatCost(llm.remaining ?? 0)} · ${llm.balanceNote}`
                     : ` · ${llm.balanceNote}`)
             }
-            className={`hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium md:inline-flex ${
+            className={`hidden items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium shadow-sm ring-1 ring-inset md:inline-flex ${
               llm.provider === 'stub' || !llm.keySet
-                ? 'border-amber-200 bg-amber-50 text-amber-700'
-                : 'border-brand-200 bg-brand-50 text-brand-700'
+                ? 'bg-gradient-to-r from-amber-50 to-orange-50 text-amber-700 ring-amber-200'
+                : 'bg-gradient-to-r from-brand-50 to-violet-50 text-brand-700 ring-brand-200'
             }`}
           >
             <SparklesIcon className="h-3.5 w-3.5" />
@@ -104,23 +94,14 @@ export default function Header({ onMenuClick }: HeaderProps) {
           </div>
         )}
 
-        <button
-          type="button"
-          className="relative grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"
-          aria-label="Notifications"
-        >
-          <BellIcon />
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500" />
-        </button>
-
         {/* User menu */}
         <div className="relative">
           <button
             type="button"
             onClick={() => setMenuOpen((o) => !o)}
-            className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-slate-100"
+            className="flex items-center gap-2.5 rounded-full py-1 pl-1 pr-3 transition hover:bg-slate-100"
           >
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-semibold text-white shadow-sm ring-2 ring-white">
               {initials}
             </span>
             <span className="hidden text-left sm:block">
@@ -134,11 +115,34 @@ export default function Header({ onMenuClick }: HeaderProps) {
           {menuOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} aria-hidden />
-              <div className="absolute right-0 z-20 mt-2 w-52 rounded-xl border border-slate-200 bg-white py-1.5 shadow-card-hover">
+              <div className="popover absolute right-0 z-20 mt-2 w-52 py-1.5">
                 <div className="border-b border-slate-100 px-4 py-2.5">
                   <p className="text-sm font-medium text-slate-800">{user?.name}</p>
                   <p className="truncate text-xs text-slate-400">{user?.email}</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    navigate('/settings');
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50"
+                >
+                  <SlidersIcon className="h-4 w-4" />
+                  Profile settings
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    navigate('/change-password');
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50"
+                >
+                  <LockIcon className="h-4 w-4" />
+                  Change password
+                </button>
+                <div className="my-1 border-t border-slate-100" />
                 <button
                   type="button"
                   onClick={handleLogout}

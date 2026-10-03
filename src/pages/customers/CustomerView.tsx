@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { deleteCustomer, getCustomer } from '../../api/customers';
 import { listQuotes, downloadQuote, type QuoteListItem } from '../../api/quotes';
@@ -7,19 +6,11 @@ import { apiErrorMessage } from '../../lib/api';
 import { formatDate } from '../../lib/format';
 import { useSettings } from '../../context/SettingsContext';
 import type { Customer } from '../../types';
-import PageHeader from '../../components/ui/PageHeader';
+import { DetailField, DetailHero, Empty } from '../../components/ui/Detail';
 import Badge from '../../components/ui/Badge';
-import { DownloadIcon } from '../../components/icons';
+import { DownloadIcon, EditIcon } from '../../components/icons';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className="mt-1 text-sm text-slate-800">{children}</dd>
-    </div>
-  );
-}
+import { confirmDialog } from '../../components/ui/Dialog';
 
 export default function CustomerView() {
   const { id } = useParams();
@@ -52,7 +43,14 @@ export default function CustomerView() {
     s === 'COMPLETED' ? 'green' : s === 'FAILED' ? 'red' : 'amber';
 
   const handleDelete = async () => {
-    if (!customer || !window.confirm(`Delete customer "${customer.name}"?`)) return;
+    if (!customer) return;
+    if (
+      !(await confirmDialog({
+        title: 'Delete customer',
+        message: `Delete customer "${customer.name}"? Their quotes and chats are removed too.`,
+      }))
+    )
+      return;
     try {
       await deleteCustomer(customer.id);
       navigate('/customers', { replace: true });
@@ -63,9 +61,18 @@ export default function CustomerView() {
 
   return (
     <div>
-      <PageHeader
-        title={loading ? 'Customer' : (customer?.name ?? 'Customer')}
-        subtitle={customer?.email ?? undefined}
+      <DetailHero
+        name={loading ? 'Customer' : (customer?.name ?? 'Customer')}
+        subtitle={customer?.email || 'Customer'}
+        meta={
+          customer && (
+            <>
+              <Badge tone={customer.status === 'ACTIVE' ? 'green' : 'gray'}>{customer.status}</Badge>
+              <Badge tone="blue">{quotes.length} quote{quotes.length === 1 ? '' : 's'}</Badge>
+              <span>Created {formatDate(customer.createdAt, settings.general.dateFormat)}</span>
+            </>
+          )
+        }
         actions={
           <>
             <button type="button" className="btn-ghost" onClick={() => navigate('/customers')}>
@@ -75,9 +82,10 @@ export default function CustomerView() {
               <>
                 <button
                   type="button"
-                  className="btn-ghost"
+                  className="btn-primary"
                   onClick={() => navigate(`/customers/${customer.id}/edit`)}
                 >
+                  <EditIcon className="h-4 w-4" />
                   Edit
                 </button>
                 <button type="button" className="btn-danger" onClick={handleDelete}>
@@ -90,43 +98,28 @@ export default function CustomerView() {
       />
 
       {error && (
-        <div className="mb-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="mb-6 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
       <Card>
-        <CardHeader
-          title="Customer details"
-          action={
-            customer && (
-              <Badge tone={customer.status === 'ACTIVE' ? 'green' : 'gray'}>
-                {customer.status}
-              </Badge>
-            )
-          }
-        />
+        <CardHeader title="Customer details" />
         <CardBody>
           {loading && <p className="py-8 text-center text-slate-400">Loading…</p>}
           {!loading && customer && (
-            <dl className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="Customer name">{customer.name}</Field>
-              <Field label="Status">
-                <Badge tone={customer.status === 'ACTIVE' ? 'green' : 'gray'}>
-                  {customer.status}
-                </Badge>
-              </Field>
-              <Field label="Email">
-                {customer.email || <span className="text-slate-400">—</span>}
-              </Field>
-              <Field label="Phone">
-                {customer.phone || <span className="text-slate-400">—</span>}
-              </Field>
-              <div className="sm:col-span-2">
-                <Field label="Address">
-                  {customer.address || <span className="text-slate-400">—</span>}
-                </Field>
-              </div>
-              <Field label="Created by">{customer.createdBy?.name ?? '—'}</Field>
-              <Field label="Created at">{formatDate(customer.createdAt, settings.general.dateFormat)}</Field>
+            <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <DetailField label="Customer name">{customer.name}</DetailField>
+              <DetailField label="Status">
+                <Badge tone={customer.status === 'ACTIVE' ? 'green' : 'gray'}>{customer.status}</Badge>
+              </DetailField>
+              <DetailField label="Email">{customer.email || <Empty />}</DetailField>
+              <DetailField label="Phone">{customer.phone || <Empty />}</DetailField>
+              <DetailField label="Address" className="sm:col-span-2">
+                {customer.address ? <span className="whitespace-pre-wrap">{customer.address}</span> : <Empty />}
+              </DetailField>
+              <DetailField label="Created by">{customer.createdBy?.name ?? <Empty />}</DetailField>
+              <DetailField label="Created at">
+                {formatDate(customer.createdAt, settings.general.dateFormat)}
+              </DetailField>
             </dl>
           )}
         </CardBody>

@@ -13,6 +13,9 @@ import { apiErrorMessage } from '../../lib/api';
 import type { Role } from '../../types';
 import PageHeader from '../../components/ui/PageHeader';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
+import Avatar from '../../components/ui/Avatar';
+import Badge from '../../components/ui/Badge';
+import { alertDialog } from '../../components/ui/Dialog';
 
 export default function UserForm() {
   const { id } = useParams();
@@ -71,10 +74,12 @@ export default function UserForm() {
         // Best-effort credentials email — warn if it was requested but failed.
         const ce = created.credentialsEmail;
         if (sendCredentials && ce && !ce.sent) {
-          window.alert(
-            `User created, but the credentials email could not be sent:\n\n${ce.error ?? 'unknown error'}\n\n` +
+          await alertDialog({
+            title: 'Credentials email not sent',
+            message:
+              `The user was created, but the credentials email could not be sent:\n\n${ce.error ?? 'unknown error'}\n\n` +
               `Check the SMTP configuration in Settings → Email (SMTP).`,
-          );
+          });
         }
       }
       navigate('/users', { replace: true });
@@ -86,7 +91,7 @@ export default function UserForm() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <PageHeader
         title={isEdit ? 'Edit user' : 'New user'}
         subtitle={isEdit ? 'Update this user and their role.' : 'Create a user and assign a role.'}
@@ -98,9 +103,10 @@ export default function UserForm() {
       />
 
       {error && (
-        <div className="mb-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="mb-6 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <Card>
         <CardHeader title="User details" />
         {loading ? (
@@ -162,26 +168,28 @@ export default function UserForm() {
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-                <span className="font-medium text-slate-700">Active</span>
-                <span className="text-slate-400">— inactive users cannot sign in</span>
-              </label>
-
-              {!isEdit && (
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={sendCredentials}
-                    onChange={(e) => setSendCredentials(e.target.checked)}
-                  />
-                  <span className="font-medium text-slate-700">Email login credentials</span>
-                  <span className="text-slate-400">— send the email &amp; password to this user</span>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex items-center gap-2 rounded-xl bg-slate-50/80 px-3 py-2.5 text-sm ring-1 ring-inset ring-slate-100">
+                  <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+                  <span className="font-medium text-slate-700">Active</span>
+                  <span className="text-slate-400">— inactive users cannot sign in</span>
                 </label>
-              )}
+
+                {!isEdit && (
+                  <label className="flex items-center gap-2 rounded-xl bg-slate-50/80 px-3 py-2.5 text-sm ring-1 ring-inset ring-slate-100">
+                    <input
+                      type="checkbox"
+                      checked={sendCredentials}
+                      onChange={(e) => setSendCredentials(e.target.checked)}
+                    />
+                    <span className="font-medium text-slate-700">Email login credentials</span>
+                    <span className="text-slate-400">— send the email &amp; password to this user</span>
+                  </label>
+                )}
+              </div>
             </CardBody>
 
-            <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
+            <div className="flex justify-end gap-2 rounded-b-2xl border-t border-slate-100 bg-slate-50/60 px-5 py-4">
               <button type="button" className="btn-ghost" onClick={() => navigate('/users')}>
                 Cancel
               </button>
@@ -192,6 +200,41 @@ export default function UserForm() {
           </form>
         )}
       </Card>
+
+      {/* Right: live preview of the account being created / edited. */}
+      <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+        <div className="card overflow-hidden">
+          <div className="relative h-16 bg-gradient-to-r from-cyan-500/20 via-brand-500/15 to-violet-500/15" />
+          <div className="-mt-7 px-5 pb-5">
+            <Avatar name={name || 'User'} size="lg" className="rounded-2xl ring-4 ring-white shadow-pop" />
+            <p className="mt-3 truncate text-base font-semibold text-slate-900">{name.trim() || 'New user'}</p>
+            <p className="truncate text-sm text-slate-500">{email.trim() || 'No email yet'}</p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <Badge tone={isActive ? 'green' : 'gray'}>{isActive ? 'Active' : 'Inactive'}</Badge>
+              {roleId !== '' ? (
+                <Badge tone="blue">{roles.find((r) => r.id === roleId)?.name ?? 'Role'}</Badge>
+              ) : (
+                <Badge tone="amber">No role · no access</Badge>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="card p-5 text-sm text-slate-600">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">What happens next</p>
+          <ul className="mt-2 space-y-2">
+            <li>• The role decides which pages and actions this user can use; manage roles under Admin → Roles.</li>
+            {!isEdit && (
+              <li>
+                • {sendCredentials
+                  ? 'The sign-in email and password will be emailed to the user.'
+                  : 'No email will be sent — share the password with the user yourself.'}
+              </li>
+            )}
+            {isEdit && <li>• Leave the password blank to keep the current one.</li>}
+          </ul>
+        </div>
+      </aside>
+      </div>
     </div>
   );
 }

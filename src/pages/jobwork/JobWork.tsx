@@ -1,27 +1,31 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 import { listCustomers } from '../../api/customers';
-import { listCompanies } from '../../api/companies';
+import { listCompanies, listRulesForBrands, type BrandRule } from '../../api/companies';
 import {
   createQuote,
   deleteQuote,
   downloadQuote,
   getQuote,
+  getQuoteProgress,
   listQuotes,
-  renameQuote,
+  updateQuote,
   sendQuoteMessage,
   type Quote,
   type QuoteListItem,
   type QuoteMessage,
+  type QuoteProgress,
 } from '../../api/quotes';
 import { apiErrorMessage } from '../../lib/api';
-import { pickChatPhases, pickGenPhases } from '../../lib/thinkingPhrases';
+import { pickChatPhases, pickGenPhases, pickStageSteps } from '../../lib/thinkingPhrases';
 import { useAppDispatch } from '../../store/hooks';
 import { fetchLlmStatus } from '../../store/llmStatusSlice';
 import { useAuth } from '../../context/AuthContext';
 import type { Customer } from '../../types';
 import Badge from '../../components/ui/Badge';
+import Avatar from '../../components/ui/Avatar';
 import Thinking from '../../components/ui/Thinking';
+import { TILE } from '../../lib/colors';
 import SendEmailModal from './SendEmailModal';
 import {
   ChevronRightIcon,
@@ -31,10 +35,12 @@ import {
   MailIcon,
   PaperclipIcon,
   PlusIcon,
+  SearchIcon,
   SendIcon,
   SparklesIcon,
   TrashIcon,
 } from '../../components/icons';
+import { confirmDialog } from '../../components/ui/Dialog';
 
 const ACCEPTED = '.pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.csv,.txt';
 
@@ -47,6 +53,8 @@ function formatSize(bytes: number): string {
 
 /** Keep the thinking indicator on screen at least this long so it doesn't flash. */
 const MIN_THINK_MS = 1800;
+/** How often the live progress is polled while the server is generating. */
+const PROGRESS_POLL_MS = 1500;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const inr = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 });
@@ -107,6 +115,10 @@ export default function JobWork() {
   const [allBrands, setAllBrands] = useState<string[]>([]);
   const [customerId, setCustomerId] = useState<number | ''>('');
   const [brands, setBrands] = useState<string[]>([]);
+  // The selected brands' rules (keyword prompts); trained ones are ticked by default.
+  const [rules, setRules] = useState<BrandRule[]>([]);
+  const [ruleIds, setRuleIds] = useState<number[]>([]);
+  const [rulesLoading, setRulesLoading] = useState(false);
 
   // Chat list + the open chat.
   const [chats, setChats] = useState<QuoteListItem[]>([]);
@@ -124,6 +136,39 @@ export default function JobWork() {
   // Fresh random wording for the progress indicators every time work starts.
   const genPhases = useMemo(() => pickGenPhases(), [generating]); // eslint-disable-line react-hooks/exhaustive-deps
   const chatPhases = useMemo(() => pickChatPhases(), [chatBusy]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The real pipeline steps (random wording per run) + what the server is on now.
+  const stageSteps = useMemo(() => pickStageSteps(), [generating, chatBusy]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [progress, setProgress] = useState<QuoteProgress['progress']>(null);
+  const pollRef = useRef<number | null>(null);
+
+  /** Poll the server's live progress for a quote until `stopPolling` is called. */
+  const startPolling = useCallback((quoteId: number, onDone?: (p: QuoteProgress) => void) => {
+    if (pollRef.current) window.clearInterval(pollRef.current);
+    let inFlight = false;
+    pollRef.current = window.setInterval(async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const p = await getQuoteProgress(quoteId);
+        setProgress(p.progress);
+        if (p.status !== 'PROCESSING') {
+          if (pollRef.current) window.clearInterval(pollRef.current);
+          pollRef.current = null;
+          onDone?.(p);
+        }
+      } catch {
+        /* a missed poll is harmless — the next one will catch up */
+      } finally {
+        inFlight = false;
+      }
+    }, PROGRESS_POLL_MS);
+  }, []);
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) window.clearInterval(pollRef.current);
+    pollRef.current = null;
+    setProgress(null);
+  }, []);
+  useEffect(() => () => stopPolling(), [stopPolling]);
   const [error, setError] = useState('');
   const [emailOpen, setEmailOpen] = useState(false);
   const [linesOpen, setLinesOpen] = useState(false);
@@ -162,12 +207,72 @@ export default function JobWork() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, chatBusy, generating]);
 
+  // Whenever the brand choice changes (or a chat is opened / created), load those
+  // brands' rules. The ticks come from the chat's SAVED pick when there is one;
+  // only a brand-new chat with nothing saved yet defaults to the trained rules.
+  const savedRuleIds = quote ? (quote.promptIds ?? null) : null;
+  useEffect(() => {
+    if (brands.length === 0) {
+      setRules([]);
+      setRuleIds([]);
+      return;
+    }
+    let alive = true;
+    setRulesLoading(true);
+    listRulesForBrands(brands)
+      .then((list) => {
+        if (!alive) return;
+        setRules(list);
+        setRuleIds(
+          savedRuleIds
+            ? list.filter((r) => savedRuleIds.includes(r.id)).map((r) => r.id)
+            : list.filter((r) => r.train).map((r) => r.id),
+        );
+      })
+      .catch((err) => alive && setError(apiErrorMessage(err, 'Could not load the brand rules')))
+      .finally(() => alive && setRulesLoading(false));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brands.join(','), quote?.id]);
+
+  /**
+   * On an open chat, a change to the customer, brands or rules is saved on the
+   * quote at once, so every later message and regeneration uses the new choice.
+   */
+  const persist = async (changes: { customerId?: number; brand?: string; promptIds?: number[] }) => {
+    if (!quote) return;
+    try {
+      const updated = await updateQuote(quote.id, changes);
+      setQuote(updated);
+      setChats((prev) =>
+        prev.map((c) => (c.id === updated.id ? { ...c, brand: updated.brand, customer: updated.customer } : c)),
+      );
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not update the chat'));
+    }
+  };
+  const changeCustomer = (id: number | '') => {
+    setCustomerId(id);
+    if (id !== '') void persist({ customerId: id });
+  };
+  const changeBrands = (next: string[]) => {
+    setBrands(next);
+    if (next.length) void persist({ brand: next.join(',') });
+  };
+  const changeRules = (next: number[]) => {
+    setRuleIds(next);
+    void persist({ promptIds: next });
+  };
+
   const selectedCustomer = useMemo(
     () => customers.find((c) => c.id === customerId) ?? null,
     [customers, customerId],
   );
 
   const newChat = () => {
+    if (generating || chatBusy) return; // don't abandon a running generation
     setQuote(null);
     setMessages([]);
     setFiles([]);
@@ -175,6 +280,12 @@ export default function JobWork() {
     setError('');
     setLinesOpen(false);
     setListOpen(false);
+    // A new chat starts clean — no customer, brand or rules carried over from the
+    // chat that was open (the rules effect resets the ticks when brands clear).
+    setCustomerId('');
+    setBrands([]);
+    setRules([]);
+    setRuleIds([]);
   };
 
   const openChat = async (id: number) => {
@@ -182,6 +293,7 @@ export default function JobWork() {
       setListOpen(false);
       return;
     }
+    if (generating || chatBusy) return; // don't switch chats mid-generation
     setOpening(true);
     setError('');
     try {
@@ -194,6 +306,22 @@ export default function JobWork() {
       setInput('');
       setLinesOpen(false);
       setListOpen(false);
+      // Still generating (e.g. the page was refreshed mid-run) — resume the live card.
+      if (q.status === 'PROCESSING') {
+        setGenerating(true);
+        startPolling(id, async () => {
+          try {
+            const fresh = await getQuote(id);
+            setQuote(fresh);
+            setMessages(fresh.messages ?? []);
+            if (fresh.status === 'FAILED') setError(fresh.error || 'Quote generation failed.');
+            void loadChats();
+          } finally {
+            stopPolling();
+            setGenerating(false);
+          }
+        });
+      }
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not open the chat'));
     } finally {
@@ -205,7 +333,7 @@ export default function JobWork() {
     const t = title.trim();
     if (!t) return;
     try {
-      const updated = await renameQuote(id, t);
+      const updated = await updateQuote(id, { title: t });
       setChats((prev) => prev.map((c) => (c.id === id ? { ...c, title: updated.title } : c)));
       if (quote?.id === id) setQuote((q) => (q ? { ...q, title: updated.title } : q));
     } catch (err) {
@@ -214,7 +342,13 @@ export default function JobWork() {
   };
 
   const remove = async (c: QuoteListItem) => {
-    if (!window.confirm(`Delete the chat "${chatTitle(c)}"? This removes the quote too.`)) return;
+    if (
+      !(await confirmDialog({
+        title: 'Delete chat',
+        message: `Delete the chat "${chatTitle(c)}"? This removes the quote and its output file too.`,
+      }))
+    )
+      return;
     try {
       await deleteQuote(c.id);
       setChats((prev) => prev.filter((x) => x.id !== c.id));
@@ -255,12 +389,22 @@ export default function JobWork() {
     setGenerating(true);
     const started = Date.now();
     try {
-      const result = await createQuote({
+      // The server answers at once with the PROCESSING chat and generates in the
+      // background; the progress card follows the real stage until it finishes.
+      const created = await createQuote({
         customerId: selectedCustomer.id,
         brand: brands.join(','),
         message: text,
+        // Only the ticked rules apply to this chat (an empty pick = no rules at all).
+        promptIds: ruleIds,
         files: sent,
       });
+      setMessages(created.messages ?? []);
+      void loadChats();
+      if (created.status === 'PROCESSING') {
+        await new Promise<void>((resolve) => startPolling(created.id, () => resolve()));
+      }
+      const result = await getQuote(created.id);
       setQuote(result);
       setMessages(result.messages ?? []);
       void dispatch(fetchLlmStatus()); // generation spent tokens — refresh the balance
@@ -270,6 +414,7 @@ export default function JobWork() {
       setError(apiErrorMessage(err, 'Could not generate the quote'));
       setFiles(sent); // let the user retry without re-attaching
     } finally {
+      stopPolling();
       const remaining = MIN_THINK_MS - (Date.now() - started);
       if (remaining > 0) await sleep(remaining);
       setGenerating(false);
@@ -294,6 +439,9 @@ export default function JobWork() {
     ]);
     setChatBusy(true);
     const started = Date.now();
+    // A chat message may regenerate the quote (attached BOQ / "regenerate"); the
+    // server publishes that run's live progress, so poll it while we wait.
+    startPolling(quote.id);
     try {
       const reply = await sendQuoteMessage(quote.id, text, sent);
       setMessages((prev) => [...prev, reply]);
@@ -309,6 +457,7 @@ export default function JobWork() {
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not send message'));
     } finally {
+      stopPolling();
       const remaining = MIN_THINK_MS - (Date.now() - started);
       if (remaining > 0) await sleep(remaining);
       setChatBusy(false);
@@ -340,7 +489,7 @@ export default function JobWork() {
   const canSend = quote ? input.trim().length > 0 || files.length > 0 : true;
 
   return (
-    <div className="relative flex h-[calc(100vh-7rem)] min-h-[34rem] gap-4">
+    <div className="relative flex h-[calc(100vh-7rem)] min-h-[34rem] gap-4 overflow-hidden">
       {/* ── Left: chat history ─────────────────────────────────────────── */}
       <ChatList
         chats={chats}
@@ -354,8 +503,8 @@ export default function JobWork() {
       />
 
       {/* ── Right: the conversation ────────────────────────────────────── */}
-      <div className="card flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3">
+      <div className="card flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex items-center gap-3 border-b border-slate-100 bg-gradient-to-r from-brand-50/70 via-white to-violet-50/50 px-4 py-3">
           <button
             type="button"
             className="btn-ghost btn-sm lg:hidden"
@@ -363,21 +512,35 @@ export default function JobWork() {
           >
             Chats
           </button>
+          {quote ? (
+            <Avatar name={quote.customer.name} />
+          ) : (
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-glow">
+              <SparklesIcon className="h-5 w-5" />
+            </span>
+          )}
           <div className="min-w-0 flex-1">
             {quote ? (
               <TitleEditor title={chatTitle(quote)} onSave={(t) => void rename(quote.id, t)} />
             ) : (
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <SparklesIcon className="h-4 w-4 text-brand-500" />
-                New quote
-              </h2>
+              <h2 className="text-sm font-semibold text-slate-900">New quote</h2>
             )}
             {quote && (
               <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-                <span>{quote.customer.name}</span>
+                <span className="font-medium text-slate-600">{quote.customer.name}</span>
                 {brands.map((b) => (
                   <Badge key={b} tone="blue">{b}</Badge>
                 ))}
+                {/* The rules this chat was started with (its brand keyword prompts). */}
+                {quote.rules && quote.rules.length > 0 ? (
+                  quote.rules.map((r) => (
+                    <Badge key={r.id} tone="amber">
+                      {r.brand} · {r.name || `Rule ${r.id}`}
+                    </Badge>
+                  ))
+                ) : (
+                  <Badge tone="gray">common rules</Badge>
+                )}
                 <Badge tone={quote.status === 'COMPLETED' ? 'green' : quote.status === 'FAILED' ? 'red' : 'amber'}>
                   {quote.status}
                 </Badge>
@@ -406,20 +569,38 @@ export default function JobWork() {
         )}
 
         {/* Thread */}
-        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
           {opening && <p className="py-10 text-center text-sm text-slate-400">Opening chat…</p>}
 
           {!opening && !quote && messages.length === 0 && (
-            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-              <span className="grid h-12 w-12 place-items-center rounded-full bg-brand-50">
-                <SparklesIcon className="h-6 w-6 text-brand-500" />
+            <div className="flex h-full flex-col items-center justify-center gap-6 px-4 text-center">
+              <span className="grid h-16 w-16 place-items-center rounded-3xl bg-gradient-to-br from-brand-500 via-brand-600 to-violet-600 text-white shadow-glow">
+                <SparklesIcon className="h-8 w-8" />
               </span>
-              <p className="text-sm font-medium text-slate-700">Start a new quote</p>
-              <p className="max-w-sm text-sm text-slate-400">
-                Choose the customer and brand(s) below, attach the BOQ, add any instructions and
-                send. The quote is built from each brand’s trained price lists, keyword prompts and
-                reference files, and you can keep chatting to refine it.
-              </p>
+              <div>
+                <p className="text-lg font-semibold tracking-tight text-slate-900">Start a new quote</p>
+                <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+                  The quote is built from each brand’s trained price lists, its rules and reference
+                  files, and what you type — then you keep chatting to refine it.
+                </p>
+              </div>
+              <ol className="grid w-full max-w-2xl gap-3 sm:grid-cols-3">
+                {[
+                  { n: 1, title: 'Pick customer, brands & rules', text: 'Use the selectors below.', tile: TILE.blue },
+                  { n: 2, title: 'Attach the BOQ', text: 'PDF, Excel, Word, text, or a photo.', tile: TILE.amber },
+                  { n: 3, title: 'Send & download', text: 'Get the Excel, then ask for changes.', tile: TILE.emerald },
+                ].map((s) => (
+                  <li key={s.n} className="card flex items-start gap-3 p-4 text-left">
+                    <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-sm font-semibold shadow-sm ${s.tile}`}>
+                      {s.n}
+                    </span>
+                    <span>
+                      <p className="text-sm font-medium text-slate-800">{s.title}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{s.text}</p>
+                    </span>
+                  </li>
+                ))}
+              </ol>
             </div>
           )}
 
@@ -443,7 +624,7 @@ export default function JobWork() {
                   (idx === firstAssistant || idx === lastAssistant || m.quoteChanged);
                 return (
                   <Fragment key={m.id}>
-                    <Bubble message={m} />
+                    <Bubble message={m} customerName={quote?.customer.name ?? selectedCustomer?.name ?? 'You'} />
                     {showFile && quote && (
                       <QuoteFileCard
                         quote={quote}
@@ -458,19 +639,38 @@ export default function JobWork() {
               });
             })()}
 
-          {generating && <Thinking variant="block" phases={genPhases} interval={2800} />}
-          {chatBusy && <Thinking variant="bubble" phases={chatPhases} />}
+          {generating && (
+            <Thinking variant="block" phases={genPhases} steps={stageSteps} progress={progress} />
+          )}
+          {/* A chat regeneration reports real stages too — show the full card then. */}
+          {chatBusy && progress ? (
+            <Thinking
+              variant="block"
+              title="Working on your request"
+              phases={chatPhases}
+              steps={stageSteps}
+              progress={progress}
+            />
+          ) : chatBusy ? (
+            <Thinking variant="bubble" phases={chatPhases} />
+          ) : null}
           <div ref={chatEndRef} />
         </div>
 
         {/* Composer */}
-        <form onSubmit={onSubmit} className="border-t border-slate-100 p-3">
-          {!quote && (
-            <div className="mb-2 grid gap-2 sm:grid-cols-2">
+        <form onSubmit={onSubmit} className="border-t border-slate-100 bg-gradient-to-b from-white to-slate-50/70 p-3">
+          {/* Customer, brands and rules — shown for new AND open chats. On an open
+              chat a change is saved at once and applies to every later message;
+              say "regenerate" (or attach the BOQ again) to rebuild the output. */}
+          <div className="mb-2 grid gap-2 sm:grid-cols-3">
+            <label className="block">
+              <span className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <span className={`h-2 w-2 rounded-full ${TILE.emerald}`} /> Customer
+              </span>
               <select
                 className="input"
                 value={customerId}
-                onChange={(e) => setCustomerId(e.target.value ? Number(e.target.value) : '')}
+                onChange={(e) => changeCustomer(e.target.value ? Number(e.target.value) : '')}
                 aria-label="Customer"
                 disabled={busy}
               >
@@ -479,8 +679,31 @@ export default function JobWork() {
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
-              <BrandSelect all={allBrands} value={brands} onChange={setBrands} disabled={busy} />
+            </label>
+            <div>
+              <span className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <span className={`h-2 w-2 rounded-full ${TILE.violet}`} /> Brands
+              </span>
+              <BrandSelect all={allBrands} value={brands} onChange={changeBrands} disabled={busy} />
             </div>
+            <div>
+              <span className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <span className={`h-2 w-2 rounded-full ${TILE.amber}`} /> Rules
+              </span>
+              <RuleSelect
+                rules={rules}
+                value={ruleIds}
+                onChange={changeRules}
+                disabled={busy || brands.length === 0}
+                loading={rulesLoading}
+              />
+            </div>
+          </div>
+          {quote && (
+            <p className="mb-2 text-xs text-slate-400">
+              Changes to the customer, brands or rules apply to your next messages. Type
+              “regenerate” to rebuild the quote with the current selection.
+            </p>
           )}
 
           {files.length > 0 && (
@@ -488,9 +711,9 @@ export default function JobWork() {
               {files.map((f, i) => (
                 <span
                   key={`${f.name}:${f.size}`}
-                  className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600"
+                  className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs text-slate-600 shadow-sm ring-1 ring-inset ring-slate-200"
                 >
-                  <PaperclipIcon className="h-3.5 w-3.5" />
+                  <PaperclipIcon className="h-3.5 w-3.5 text-brand-500" />
                   <span className="max-w-[14rem] truncate">{f.name}</span>
                   <span className="text-slate-400">{formatSize(f.size)}</span>
                   <button
@@ -506,7 +729,7 @@ export default function JobWork() {
             </div>
           )}
 
-          <div className="flex items-end gap-2 rounded-xl border border-slate-300 bg-white p-2 shadow-sm focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
+          <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-card transition-all focus-within:border-brand-400 focus-within:shadow-pop focus-within:ring-4 focus-within:ring-brand-500/10">
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
@@ -581,6 +804,7 @@ function ChatList({
 }) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
+  const [search, setSearch] = useState('');
 
   const startEdit = (c: QuoteListItem) => {
     setEditingId(c.id);
@@ -591,24 +815,57 @@ function ChatList({
     setEditingId(null);
   };
 
+  // Filter by name / customer / brand, then group by day like a mail client.
+  const q = search.trim().toLowerCase();
+  const shown = q
+    ? chats.filter((c) =>
+        `${chatTitle(c)} ${c.customer.name} ${c.brand ?? ''}`.toLowerCase().includes(q),
+      )
+    : chats;
+  const groups = new Map<string, QuoteListItem[]>();
+  const today = new Date().toDateString();
+  const yesterday = new Date(Date.now() - 86_400_000).toDateString();
+  for (const c of shown) {
+    const d = new Date(c.createdAt).toDateString();
+    const key = d === today ? 'Today' : d === yesterday ? 'Yesterday' : 'Earlier';
+    (groups.get(key) ?? groups.set(key, []).get(key)!).push(c);
+  }
+
   return (
     <aside
-      className={`card ${open ? 'absolute inset-x-4 z-20 flex max-h-[70vh]' : 'hidden'} w-auto flex-col lg:static lg:flex lg:max-h-none lg:w-72 lg:shrink-0`}
+      className={`card ${open ? 'absolute inset-x-4 z-20 flex max-h-[70vh]' : 'hidden'} w-auto min-h-0 flex-col overflow-hidden lg:static lg:flex lg:h-full lg:max-h-none lg:w-72 lg:shrink-0`}
     >
-      <div className="border-b border-slate-100 p-3">
+      <div className="space-y-2 border-b border-slate-100 bg-gradient-to-b from-brand-50/60 to-white p-3">
         <button type="button" className="btn-primary w-full" onClick={onNew}>
           <PlusIcon className="h-4 w-4" />
           New chat
         </button>
+        <div className="relative">
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <input
+            className="input py-1.5 pl-8 text-xs"
+            placeholder="Search chats…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search chats"
+          />
+        </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-2">
+      {/* min-h-0 lets this flex child shrink below its content so the list scrolls. */}
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {loading ? (
           <p className="py-8 text-center text-sm text-slate-400">Loading…</p>
-        ) : chats.length === 0 ? (
-          <p className="px-2 py-8 text-center text-sm text-slate-400">No chats yet.</p>
+        ) : shown.length === 0 ? (
+          <p className="px-2 py-8 text-center text-sm text-slate-400">
+            {chats.length === 0 ? 'No chats yet.' : 'No chats match your search.'}
+          </p>
         ) : (
           <ul className="space-y-0.5">
-            {chats.map((c) => {
+            {[...groups.entries()].flatMap(([group, items]) => [
+              <li key={`h-${group}`} className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 first:pt-1">
+                {group}
+              </li>,
+              ...items.map((c) => {
               const active = c.id === activeId;
               return (
                 <li key={c.id} className="group relative">
@@ -630,15 +887,20 @@ function ChatList({
                     <button
                       type="button"
                       onClick={() => onOpen(c.id)}
-                      className={`w-full rounded-lg px-3 py-2 pr-16 text-left transition ${
-                        active ? 'bg-brand-50 text-brand-700' : 'hover:bg-slate-100'
+                      className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2 pr-16 text-left transition-all ${
+                        active
+                          ? 'bg-brand-50 text-brand-700 shadow-sm ring-1 ring-inset ring-brand-100'
+                          : 'hover:bg-slate-100'
                       }`}
                     >
-                      <p className="truncate text-sm font-medium">{chatTitle(c)}</p>
-                      <p className="truncate text-xs text-slate-400">
-                        {c.customer.name} · {chatDate(c.createdAt)}
-                        {c.status !== 'COMPLETED' && ` · ${c.status.toLowerCase()}`}
-                      </p>
+                      <Avatar name={c.customer.name} size="sm" />
+                      <span className="min-w-0">
+                        <p className="truncate text-sm font-medium">{chatTitle(c)}</p>
+                        <p className="truncate text-xs text-slate-400">
+                          {c.customer.name} · {chatDate(c.createdAt)}
+                          {c.status !== 'COMPLETED' && ` · ${c.status.toLowerCase()}`}
+                        </p>
+                      </span>
                     </button>
                   )}
                   {editingId !== c.id && (
@@ -665,7 +927,8 @@ function ChatList({
                   )}
                 </li>
               );
-            })}
+              }),
+            ])}
           </ul>
         )}
       </div>
@@ -718,14 +981,26 @@ function TitleEditor({ title, onSave }: { title: string; onSave: (t: string) => 
   );
 }
 
-function Bubble({ message: m }: { message: QuoteMessage }) {
+/** One chat message with its sender avatar: the AI (sparkle tile) or the customer. */
+function Bubble({ message: m, customerName }: { message: QuoteMessage; customerName: string }) {
   const mine = m.role === 'USER';
+  const time = new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   return (
-    <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+    <div className={`group flex items-end gap-2 ${mine ? 'flex-row-reverse' : ''}`}>
+      {mine ? (
+        <Avatar name={customerName} size="sm" className="mb-0.5" />
+      ) : (
+        <span className="mb-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white shadow-sm">
+          <SparklesIcon className="h-3.5 w-3.5" />
+        </span>
+      )}
       <div
-        className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
-          mine ? 'rounded-br-sm bg-brand-600 text-white' : 'rounded-bl-sm bg-slate-100 text-slate-700'
+        className={`relative max-w-[80%] animate-fade-up rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+          mine
+            ? 'rounded-br-md bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-glow'
+            : 'rounded-bl-md border border-slate-200/80 bg-white text-slate-700 shadow-card'
         }`}
+        title={time}
       >
         {m.content && <p className="whitespace-pre-wrap">{m.content}</p>}
         {m.attachments && m.attachments.length > 0 && (
@@ -767,9 +1042,9 @@ function QuoteFileCard({
   const items = bomItemCount(quote);
   return (
     <div className="flex justify-start">
-      <div className="w-full max-w-[85%] rounded-2xl rounded-bl-sm border border-slate-200 bg-white shadow-sm">
+      <div className="w-full max-w-[85%] animate-fade-up rounded-2xl rounded-bl-md border border-slate-200/80 bg-white shadow-card">
         <div className="flex items-center gap-3 px-3 py-2.5">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-600">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-sm">
             <FileIcon className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
@@ -851,6 +1126,100 @@ function QuoteFileCard({
   );
 }
 
+/**
+ * Multi-select dropdown of the selected brands' rules (keyword prompts), grouped
+ * by brand. Trained rules come pre-ticked; the pick is sent with the first
+ * message and applies to the whole chat.
+ */
+function RuleSelect({
+  rules,
+  value,
+  onChange,
+  disabled,
+  loading,
+}: {
+  rules: BrandRule[];
+  value: number[];
+  onChange: (next: number[]) => void;
+  disabled?: boolean;
+  loading?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+  const allSelected = rules.length > 0 && value.length === rules.length;
+  const toggle = (id: number) =>
+    onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
+  const byBrand = new Map<string, BrandRule[]>();
+  for (const r of rules) (byBrand.get(r.brand) ?? byBrand.set(r.brand, []).get(r.brand)!).push(r);
+  const label = (r: BrandRule) => r.name || `Rule ${r.id}`;
+
+  const summary = loading
+    ? 'Loading rules…'
+    : rules.length === 0
+      ? disabled
+        ? '— Rules (pick brands first) —'
+        : 'No rules on these brands'
+      : value.length === 0
+        ? 'No rules selected'
+        : // Name the selected rules (with brand when several brands), never "All…".
+          rules
+            .filter((r) => value.includes(r.id))
+            .map((r) => (byBrand.size > 1 ? `${r.brand} · ${label(r)}` : label(r)))
+            .join(', ');
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="input flex items-center justify-between text-left"
+        disabled={disabled || loading || rules.length === 0}
+        aria-label="Rules"
+      >
+        <span className={`truncate ${value.length ? 'text-slate-700' : 'text-slate-400'}`}>{summary}</span>
+        <span className="ml-2 shrink-0 text-slate-400">▾</span>
+      </button>
+      {open && rules.length > 0 && (
+        <div className="popover absolute bottom-full z-20 mb-1 max-h-72 w-full overflow-auto py-1">
+          <label className="flex cursor-pointer items-center gap-2 border-b border-slate-100 px-3 py-2 hover:bg-slate-50">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={() => onChange(allSelected ? [] : rules.map((r) => r.id))}
+            />
+            <span className="text-sm font-medium text-slate-700">Select all</span>
+          </label>
+          {[...byBrand.entries()].map(([brand, list]) => (
+            <div key={brand}>
+              {/* Brand heading, then each rule tagged with its brand as well. */}
+              <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{brand}</p>
+              {list.map((r) => (
+                <label key={r.id} className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-slate-50">
+                  <input type="checkbox" checked={value.includes(r.id)} onChange={() => toggle(r.id)} />
+                  <Badge tone="blue">{r.brand}</Badge>
+                  <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{label(r)}</span>
+                  {r.train ? (
+                    <span className="shrink-0 text-xs text-slate-400">common</span>
+                  ) : (
+                    <span className="shrink-0 text-xs text-slate-400">optional</span>
+                  )}
+                </label>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Multi-select dropdown of the active brands, with "Select all". */
 function BrandSelect({
   all,
@@ -891,12 +1260,12 @@ function BrandSelect({
         aria-label="Brands"
       >
         <span className={`truncate ${value.length ? 'text-slate-700' : 'text-slate-400'}`}>
-          {value.length === 0 ? '— Select brands —' : allSelected ? 'All brands' : value.join(', ')}
+          {value.length === 0 ? '— Select brands —' : value.join(', ')}
         </span>
         <span className="ml-2 shrink-0 text-slate-400">▾</span>
       </button>
       {open && (
-        <div className="absolute bottom-full z-20 mb-1 max-h-64 w-full overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+        <div className="popover absolute bottom-full z-20 mb-1 max-h-64 w-full overflow-auto py-1">
           <label className="flex cursor-pointer items-center gap-2 border-b border-slate-100 px-3 py-2 hover:bg-slate-50">
             <input type="checkbox" checked={allSelected} onChange={() => onChange(allSelected ? [] : [...all])} />
             <span className="text-sm font-medium text-slate-700">Select all</span>

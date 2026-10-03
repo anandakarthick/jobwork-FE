@@ -33,6 +33,20 @@ export const deleteCompany = (id: number | string) => api.delete(`/companies/${i
 
 // ---------- Brand keyword prompts ----------
 
+/** A rule offered in the Get Quote picker: a brand's prompt, trained = ticked by default. */
+export interface BrandRule {
+  id: number;
+  name: string;
+  brand: string;
+  train: boolean;
+}
+
+/** Keyword prompts of several brands by name, for the rule picker. */
+export const listRulesForBrands = (brands: string[]) =>
+  api
+    .get<BrandRule[]>('/companies/prompts', { params: { brands: brands.join(',') } })
+    .then((r) => r.data);
+
 /** One row of the prompt list as saved: `id` present = existing, absent = new. */
 export interface BrandPromptInput {
   id?: number;
@@ -47,6 +61,16 @@ export const listBrandPrompts = (companyId: number | string) =>
 /** Save the brand's whole prompt list (rows left out are deleted). */
 export const saveBrandPrompts = (companyId: number | string, prompts: BrandPromptInput[]) =>
   api.put<BrandPrompt[]>(`/companies/${companyId}/prompts`, { prompts }).then((r) => r.data);
+
+/** Train one rule into Claude (upload its text to Anthropic's Files API). */
+export const trainBrandPromptIntoClaude = (companyId: number | string, promptId: number) =>
+  api
+    .post<BrandPrompt>(`/companies/${companyId}/prompts/${promptId}/train-claude`)
+    .then((r) => r.data);
+
+/** Train every rule of the brand into Claude. */
+export const trainBrandPromptsIntoClaude = (companyId: number | string) =>
+  api.post<{ started: number }>(`/companies/${companyId}/prompts/train-claude`).then((r) => r.data);
 
 // ---------- Brand price-list documents ----------
 
@@ -84,6 +108,12 @@ export const updateBrandPriceList = (
 
 export const deleteBrandPriceList = (companyId: number | string, docId: number) =>
   api.delete(`/companies/${companyId}/price-lists/${docId}`);
+
+/** Train one brand file into Claude (upload to Anthropic's Files API). */
+export const trainBrandPriceListIntoClaude = (companyId: number | string, docId: number) =>
+  api
+    .post<ProductDocument>(`/companies/${companyId}/price-lists/${docId}/train-claude`)
+    .then((r) => r.data);
 
 /** Save a blob the API returned as a file download. */
 function saveBlob(blob: Blob, fileName: string) {

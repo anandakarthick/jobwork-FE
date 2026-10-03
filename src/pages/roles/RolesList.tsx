@@ -8,6 +8,7 @@ import PageHeader from '../../components/ui/PageHeader';
 import DataTable, { type Column } from '../../components/ui/Table';
 import Badge from '../../components/ui/Badge';
 import { PlusIcon } from '../../components/icons';
+import { confirmDialog } from '../../components/ui/Dialog';
 
 export default function RolesList() {
   const navigate = useNavigate();
@@ -35,7 +36,7 @@ export default function RolesList() {
 
   const handleDelete = async (e: React.MouseEvent, role: Role) => {
     e.stopPropagation();
-    if (!window.confirm(`Delete role "${role.name}"?`)) return;
+    if (!(await confirmDialog({ title: 'Delete role', message: `Delete role "${role.name}"?` }))) return;
     try {
       await deleteRole(role.id);
       await load();
@@ -124,7 +125,7 @@ export default function RolesList() {
       />
 
       {error && (
-        <div className="mb-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="mb-6 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
       <DataTable

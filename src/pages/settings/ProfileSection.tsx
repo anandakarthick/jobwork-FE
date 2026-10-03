@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { changePassword, updateProfile } from '../../api/auth';
+import { updateProfile } from '../../api/auth';
 import { apiErrorMessage } from '../../lib/api';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import { IdIcon, LockIcon, SaveIcon } from '../../components/icons';
@@ -25,14 +26,6 @@ export default function ProfileSection() {
   const [profileMsg, setProfileMsg] = useState('');
   const [profileErr, setProfileErr] = useState('');
 
-  // Password form
-  const [current, setCurrent] = useState('');
-  const [next, setNext] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [savingPwd, setSavingPwd] = useState(false);
-  const [pwdMsg, setPwdMsg] = useState('');
-  const [pwdErr, setPwdErr] = useState('');
-
   if (!user) return null;
 
   const saveProfile = async (e: FormEvent) => {
@@ -51,28 +44,6 @@ export default function ProfileSection() {
     }
   };
 
-  const savePassword = async (e: FormEvent) => {
-    e.preventDefault();
-    if (next !== confirm) {
-      setPwdErr('New passwords do not match.');
-      return;
-    }
-    setSavingPwd(true);
-    setPwdMsg('');
-    setPwdErr('');
-    try {
-      const res = await changePassword(current, next);
-      setPwdMsg(res.message);
-      setCurrent('');
-      setNext('');
-      setConfirm('');
-    } catch (err) {
-      setPwdErr(apiErrorMessage(err, 'Could not change your password'));
-    } finally {
-      setSavingPwd(false);
-    }
-  };
-
   const memberSince = new Date(user.createdAt).toLocaleDateString();
 
   return (
@@ -85,7 +56,7 @@ export default function ProfileSection() {
       {/* Identity banner */}
       <Card className="mb-6">
         <CardBody className="flex items-center gap-4">
-          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-brand-100 text-xl font-bold text-brand-700">
+          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-600 text-xl font-bold text-white shadow-glow">
             {initials(user.name) || '?'}
           </div>
           <div className="min-w-0">
@@ -155,70 +126,33 @@ export default function ProfileSection() {
           </form>
         </Card>
 
-        {/* Change password */}
+        {/* Security — the password has its own page with a strength meter. */}
         <Card>
           <CardHeader
             title={
               <span className="flex items-center gap-2">
                 <LockIcon className="h-4 w-4 text-slate-400" />
-                Reset password
+                Security
               </span>
             }
           />
-          <form onSubmit={savePassword}>
-            <CardBody className="space-y-4">
-              {pwdErr && (
-                <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{pwdErr}</div>
-              )}
-              {pwdMsg && (
-                <div className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{pwdMsg}</div>
-              )}
-              <div>
-                <label className="label" htmlFor="pf-cur">Current password</label>
-                <input
-                  id="pf-cur"
-                  type="password"
-                  className="input"
-                  value={current}
-                  onChange={(e) => setCurrent(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                />
+          <CardBody>
+            <div className="flex items-start gap-4 rounded-2xl bg-gradient-to-br from-brand-50 to-violet-50 p-4 ring-1 ring-inset ring-brand-100">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white shadow-sm">
+                <LockIcon className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-slate-800">Password</p>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  Change your password regularly and never reuse one from another site.
+                </p>
+                <Link to="/change-password" className="btn-primary btn-sm mt-3">
+                  <LockIcon className="h-4 w-4" />
+                  Change password
+                </Link>
               </div>
-              <div>
-                <label className="label" htmlFor="pf-new">New password</label>
-                <input
-                  id="pf-new"
-                  type="password"
-                  className="input"
-                  value={next}
-                  onChange={(e) => setNext(e.target.value)}
-                  minLength={6}
-                  required
-                  autoComplete="new-password"
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="pf-confirm">Confirm new password</label>
-                <input
-                  id="pf-confirm"
-                  type="password"
-                  className="input"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  minLength={6}
-                  required
-                  autoComplete="new-password"
-                />
-              </div>
-            </CardBody>
-            <div className="flex justify-end border-t border-slate-100 px-5 py-3">
-              <button type="submit" className="btn-primary btn-sm" disabled={savingPwd}>
-                <LockIcon className="h-4 w-4" />
-                {savingPwd ? 'Updating…' : 'Update password'}
-              </button>
             </div>
-          </form>
+          </CardBody>
         </Card>
       </div>
     </div>

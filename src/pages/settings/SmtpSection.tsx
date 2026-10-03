@@ -5,6 +5,7 @@ import { apiErrorMessage } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import { MailIcon, SendIcon } from '../../components/icons';
+import { confirmDialog } from '../../components/ui/Dialog';
 
 export default function SmtpSection() {
   const { can } = useAuth();
@@ -87,7 +88,14 @@ export default function SmtpSection() {
   };
 
   const clearPassword = async () => {
-    if (!window.confirm('Remove the stored SMTP password?')) return;
+    if (
+      !(await confirmDialog({
+        title: 'Remove password',
+        message: 'Remove the stored SMTP password? Outgoing email will stop until a new one is saved.',
+        confirmLabel: 'Remove',
+      }))
+    )
+      return;
     setError('');
     try {
       const updated = await updateSmtpSettings({ clearPassword: true });

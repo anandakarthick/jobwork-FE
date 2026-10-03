@@ -21,22 +21,41 @@ export default {
           800: 'rgb(var(--brand-800) / <alpha-value>)',
           900: 'rgb(var(--brand-900) / <alpha-value>)',
         },
-        // Sidebar surface (dark navy-slate).
+        // Sidebar surface (deep navy-slate).
         sidebar: {
-          DEFAULT: '#0f172a',
-          hover: '#1e293b',
+          DEFAULT: '#0b1220',
+          hover: 'rgb(255 255 255 / 0.06)',
           active: '#1d4ed8',
-          muted: '#94a3b8',
-          border: '#1e293b',
+          muted: '#8b9bb4',
+          border: 'rgb(255 255 255 / 0.08)',
         },
       },
       boxShadow: {
-        card: '0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06)',
-        'card-hover': '0 4px 12px -2px rgb(15 23 42 / 0.10)',
-        header: '0 1px 3px 0 rgb(15 23 42 / 0.06)',
+        // Layered, low-contrast shadows read as depth without looking heavy.
+        card: '0 1px 2px 0 rgb(15 23 42 / 0.04), 0 2px 8px -2px rgb(15 23 42 / 0.06)',
+        'card-hover': '0 4px 16px -4px rgb(15 23 42 / 0.12), 0 2px 6px -2px rgb(15 23 42 / 0.06)',
+        header: '0 1px 0 0 rgb(15 23 42 / 0.05)',
+        pop: '0 12px 32px -8px rgb(15 23 42 / 0.18), 0 4px 12px -4px rgb(15 23 42 / 0.08)',
+        glow: '0 8px 24px -8px rgb(var(--brand-600) / 0.45)',
       },
       borderRadius: {
         xl: '0.75rem',
+        '2xl': '1rem',
+        '3xl': '1.5rem',
+      },
+      keyframes: {
+        'fade-up': {
+          from: { opacity: '0', transform: 'translateY(6px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        'pop-in': {
+          from: { opacity: '0', transform: 'scale(0.97) translateY(4px)' },
+          to: { opacity: '1', transform: 'scale(1) translateY(0)' },
+        },
+      },
+      animation: {
+        'fade-up': 'fade-up 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both',
+        'pop-in': 'pop-in 0.18s ease-out both',
       },
     },
   },

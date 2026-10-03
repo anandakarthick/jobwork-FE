@@ -204,5 +204,24 @@ const pickOne = <T,>(list: T[]): T => list[Math.floor(Math.random() * list.lengt
 /** A fresh random phrasing for every stage of quote generation. */
 export const pickGenPhases = (): string[] => GEN_STAGES.map(pickOne);
 
+/**
+ * The server's real pipeline stages, each with a freshly picked phrasing. The
+ * progress card shows these as its steps and lights up the one the server says
+ * is running — so the wording varies per run but the progress is genuine.
+ */
+export type StageKey = 'collect' | 'read' | 'extract' | 'retrieve' | 'match' | 'price' | 'assemble' | 'save';
+const STAGE_POOL: Record<StageKey, string[]> = {
+  collect: GEN_STAGES[0]!,
+  read: GEN_STAGES[1]!,
+  extract: [...GEN_STAGES[2]!, ...GEN_STAGES[3]!],
+  retrieve: GEN_STAGES[5]!,
+  match: GEN_STAGES[6]!,
+  price: GEN_STAGES[7]!,
+  assemble: GEN_STAGES[8]!,
+  save: GEN_STAGES[9]!,
+};
+export const pickStageSteps = (): { key: StageKey; label: string }[] =>
+  (Object.keys(STAGE_POOL) as StageKey[]).map((key) => ({ key, label: pickOne(STAGE_POOL[key]) }));
+
 /** A fresh random phrasing for every stage of a chat reply. */
 export const pickChatPhases = (): string[] => CHAT_STAGES.map(pickOne);
