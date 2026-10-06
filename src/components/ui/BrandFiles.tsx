@@ -341,7 +341,7 @@ export default function BrandFiles({
                         >
                           <Badge tone={STATUS_TONE[aiStatus]}>
                             {aiStatus === 'COMPLETED'
-                              ? `trained · text · ${(doc.aiFileChars ?? 0).toLocaleString()} chars${doc.aiPages ? ` · ${doc.aiPages} pages` : ''}`
+                              ? `trained · ${(doc.aiFileChars ?? 0).toLocaleString()} chars${doc.aiPages ? ` · ${doc.aiPages} pages` : ''}${doc.aiSectionCount ? ` · ${doc.aiSectionCount} sections` : ''}`
                               : STATUS_LABEL[aiStatus]}
                           </Badge>
                           {aiStatus === 'COMPLETED' && doc.aiFileId && (

@@ -11,6 +11,8 @@ export interface LlmSettings {
   quoteEngine: QuoteEngine;
   /** Anthropic workspace id ("wrkspc_…") — needed by the Files API with an org-wide key. */
   anthropicWorkspaceId?: string;
+  /** Cheap Claude model for small jobs (section picking, simple chat answers). */
+  anthropicFastModel?: string;
   openaiKeySet: boolean;
   anthropicKeySet: boolean;
   openaiBalance: number | null;
@@ -27,6 +29,7 @@ export interface UpdateLlmPayload {
   anthropicModel?: string;
   quoteEngine?: QuoteEngine;
   anthropicWorkspaceId?: string;
+  anthropicFastModel?: string;
   openaiApiKey?: string;
   anthropicApiKey?: string;
   clearOpenaiKey?: boolean;

@@ -91,6 +91,9 @@ export interface ProductDocument {
   /** "pdf" = the original PDF is in Claude (plus its text); "text" = text only. */
   aiFileKind?: 'pdf' | 'text' | null;
   aiPages?: number | null;
+  /** Catalogue index built from the file (sections stored in Claude). */
+  aiIndexedAt?: string | null;
+  aiSectionCount?: number | null;
 }
 
 /** A brand's keyword prompt — sent to the AI for that brand's quotes when trained. */
