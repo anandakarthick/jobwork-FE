@@ -74,15 +74,27 @@ export default function Dashboard() {
             </h1>
             <p className="mt-1 text-sm text-white/80">Overview of your customers, brands and quotes.</p>
           </div>
-          {canQuotes && (
+          <div className="flex flex-wrap items-center gap-2">
             <Link
-              to="/jobwork"
-              className="btn inline-flex bg-white text-brand-700 shadow-pop hover:bg-brand-50 focus-visible:ring-white/50"
+              to="/guide"
+              className="btn inline-flex border border-white/40 bg-white/10 text-white hover:bg-white/20 focus-visible:ring-white/50"
             >
-              <SparklesIcon className="h-4 w-4" />
-              New quote
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5v-15Z" />
+                <path strokeLinecap="round" d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20M8 7h8M8 10.5h8" />
+              </svg>
+              User guide
             </Link>
-          )}
+            {canQuotes && (
+              <Link
+                to="/jobwork"
+                className="btn inline-flex bg-white text-brand-700 shadow-pop hover:bg-brand-50 focus-visible:ring-white/50"
+              >
+                <SparklesIcon className="h-4 w-4" />
+                New quote
+              </Link>
+            )}
+          </div>
         </div>
       </section>
 
