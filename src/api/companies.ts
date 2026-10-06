@@ -75,6 +75,10 @@ export interface BrandRules {
 export const listBrandPrompts = (companyId: number | string) =>
   api.get<BrandRules>(`/companies/${companyId}/prompts`).then((r) => r.data);
 
+/** Make the brand's ungrouped rules a named group; returns the whole tree. */
+export const groupUngroupedBrandRules = (companyId: number | string, name: string) =>
+  api.post<BrandRules>(`/companies/${companyId}/rule-groups`, { name }).then((r) => r.data);
+
 /** Rename one rule group in place; returns the brand's groups. */
 export const renameBrandRuleGroup = (companyId: number | string, groupId: number, name: string) =>
   api.patch<BrandRuleGroup[]>(`/companies/${companyId}/rule-groups/${groupId}`, { name }).then((r) => r.data);

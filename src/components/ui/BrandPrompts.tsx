@@ -89,7 +89,11 @@ interface Props {
    * saves it through the API and refreshes its state; absent = names are static.
    */
   onRenameGroup?: (groupId: number, name: string) => Promise<void>;
+  /** View pages: give the "No group" rules a group of their own, saved at once. */
+  onNameUngrouped?: (name: string) => Promise<void>;
 }
+
+const UNGROUPED_KEY = '__ungrouped';
 
 /**
  * A brand's rules as a tree: first a GROUP is created (e.g. "MCCB"), then rules
@@ -111,6 +115,7 @@ export default function BrandPrompts({
   onGroupsChange,
   onChange,
   onRenameGroup,
+  onNameUngrouped,
 }: Props) {
   const { settings } = useSettings();
   const claudeEngine = useAppSelector((s) => s.llmStatus.status?.quoteEngine) === 'claude';
@@ -124,22 +129,46 @@ export default function BrandPrompts({
     setRenaming({ key: g.key, name: g.name, saving: false });
     window.setTimeout(() => document.getElementById(`group-rename-${g.key}`)?.focus(), 0);
   };
-  const commitRename = async (g: GroupRow) => {
-    if (!renaming || renaming.key !== g.key || g.id == null || !onRenameGroup) return;
+  /** `g == null` = the "No group" card: naming it creates a group for those rules. */
+  const commitRename = async (g: GroupRow | null) => {
+    if (!renaming || renaming.key !== (g?.key ?? UNGROUPED_KEY)) return;
     const name = renaming.name.trim();
-    if (!name || name === g.name) {
+    if (!name || (g && name === g.name)) {
       setRenaming(null);
       return;
     }
     setRenaming({ ...renaming, saving: true });
     setError('');
     try {
-      await onRenameGroup(g.id, name);
+      if (g == null) {
+        if (!onNameUngrouped) return;
+        await onNameUngrouped(name);
+      } else {
+        if (g.id == null || !onRenameGroup) return;
+        await onRenameGroup(g.id, name);
+      }
       setRenaming(null);
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not rename the group'));
+      setError(apiErrorMessage(err, g == null ? 'Could not create the group' : 'Could not rename the group'));
       setRenaming({ ...renaming, saving: false });
     }
+  };
+
+  /**
+   * Edit page: typing a name on the "No group" card turns it into a real group —
+   * a GroupRow is created and every ungrouped rule moves into it.
+   */
+  const nameUngroupedInForm = (name: string) => {
+    const key = `new-g-${nextNewKey++}`;
+    onGroupsChange?.([...groups, { key, name }]);
+    const groupKeys = new Set(groups.map((g) => g.key));
+    onChange?.(rows.map((r) => (r.groupKey == null || !groupKeys.has(r.groupKey) ? { ...r, groupKey: key } : r)));
+    // The card re-renders as that group; keep typing in its name box.
+    window.setTimeout(() => {
+      const el = document.getElementById(`group-name-${key}`) as HTMLInputElement | null;
+      el?.focus();
+      el?.setSelectionRange(el.value.length, el.value.length);
+    }, 0);
   };
 
   const toggle = (key: string) =>
@@ -398,10 +427,11 @@ export default function BrandPrompts({
 
   /** A group card: header (chevron, name, count, Add rule, remove) and its rules nested below. */
   const renderGroup = (g: GroupRow | null, list: PromptRow[], index: number) => {
-    const key = g?.key ?? '__ungrouped';
+    const key = g?.key ?? UNGROUPED_KEY;
     const collapsed = collapsedGroups.has(key);
     const label = g ? g.name.trim() || `Group ${index + 1}` : 'No group';
     const dup = g != null && dupNames.has(g.name.trim().toLowerCase());
+    const canRenameHere = g ? g.id != null && !!onRenameGroup : !!onNameUngrouped;
     return (
       <li key={key} className="rounded-xl border border-violet-200 bg-violet-50/40">
         <div className="flex flex-wrap items-center gap-3 px-3 py-2">
@@ -427,15 +457,27 @@ export default function BrandPrompts({
               aria-label={`Name of group ${index + 1}`}
               title={dup ? 'Another group has this name' : undefined}
             />
-          ) : g && renaming?.key === g.key ? (
+          ) : !g && !readOnly ? (
+            /* Edit page: type a name here and these rules become that group. */
+            <input
+              className="input w-64 shrink-0 font-medium"
+              value=""
+              onChange={(e) => nameUngroupedInForm(e.target.value)}
+              placeholder="No group — type a name to make one"
+              maxLength={100}
+              aria-label="Name a group for the ungrouped rules"
+              title="Typing a name here creates a group and moves these rules into it"
+            />
+          ) : renaming?.key === key ? (
             /* View page: rename in place — Enter saves, Escape cancels. */
             <span className="flex shrink-0 items-center gap-1.5">
               <input
-                id={`group-rename-${g.key}`}
+                id={`group-rename-${key}`}
                 className="input w-64 font-medium"
                 value={renaming.name}
                 disabled={renaming.saving}
                 maxLength={100}
+                placeholder={g ? 'Group name' : 'Name for these rules, e.g. MCCB'}
                 onChange={(e) => setRenaming({ ...renaming, name: e.target.value })}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -443,7 +485,7 @@ export default function BrandPrompts({
                     void commitRename(g);
                   } else if (e.key === 'Escape') setRenaming(null);
                 }}
-                aria-label={`New name for ${label}`}
+                aria-label={g ? `New name for ${label}` : 'Group name for the ungrouped rules'}
               />
               <button
                 type="button"
@@ -460,13 +502,13 @@ export default function BrandPrompts({
           ) : (
             <span className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-slate-800">
               {label}
-              {g && g.id != null && onRenameGroup && (
+              {canRenameHere && (
                 <button
                   type="button"
-                  onClick={() => startRename(g)}
+                  onClick={() => (g ? startRename(g) : startRename({ key: UNGROUPED_KEY, name: '' }))}
                   className="text-slate-400 hover:text-brand-600"
-                  aria-label={`Rename ${label}`}
-                  title="Rename group"
+                  aria-label={g ? `Rename ${label}` : 'Name a group for these rules'}
+                  title={g ? 'Rename group' : 'Give these rules a group name'}
                 >
                   <EditIcon className="h-3.5 w-3.5" />
                 </button>
@@ -475,7 +517,10 @@ export default function BrandPrompts({
           )}
           <span className="min-w-0 flex-1 truncate text-xs text-slate-500">
             {list.length === 0 ? 'No rules yet' : `${list.length} rule${list.length === 1 ? '' : 's'}`}
-            {g == null && ' — created before groups; add them to a group or leave as is'}
+            {g == null &&
+              (readOnly
+                ? ' — created before groups; use the pencil to give them a group name'
+                : ' — created before groups; type a group name on the left, or move each rule with “Move to…”')}
           </span>
           {!readOnly && g && (
             <button type="button" onClick={() => addRow(g.key)} className="btn-ghost btn-sm">

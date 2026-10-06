@@ -4,6 +4,7 @@ import {
   deleteCompany,
   getCompany,
   listBrandPriceLists,
+  groupUngroupedBrandRules,
   listBrandPrompts,
   renameBrandRuleGroup,
   setCompanyStatus,
@@ -196,6 +197,15 @@ export default function CompanyView() {
                 onRenameGroup={
                   canEdit
                     ? async (groupId, name) => setGroups(await renameBrandRuleGroup(company.id, groupId, name))
+                    : undefined
+                }
+                onNameUngrouped={
+                  canEdit
+                    ? async (name) => {
+                        const res = await groupUngroupedBrandRules(company.id, name);
+                        setGroups(res.groups);
+                        setPrompts(res.prompts);
+                      }
                     : undefined
                 }
               />
