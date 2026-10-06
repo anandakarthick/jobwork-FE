@@ -24,7 +24,12 @@ import BrandFiles, {
   type ExistingFile,
   type NewFile,
 } from '../../components/ui/BrandFiles';
-import BrandPrompts, { toPromptRows, type PromptRow } from '../../components/ui/BrandPrompts';
+import BrandPrompts, {
+  toGroupRows,
+  toPromptRows,
+  type GroupRow,
+  type PromptRow,
+} from '../../components/ui/BrandPrompts';
 import CompanyFormFields from './CompanyFormFields';
 
 const EMPTY: CompanyInput = { name: '', status: 'ACTIVE', description: '' };
@@ -32,7 +37,8 @@ const EMPTY: CompanyInput = { name: '', status: 'ACTIVE', description: '' };
 /** What a create hands to the edit page when the brand saved but a later step failed. */
 interface CarriedState {
   error?: string;
-  /** Prompts typed on the create page that could not be saved yet. */
+  /** Groups and prompts typed on the create page that could not be saved yet. */
+  groups?: GroupRow[];
   prompts?: PromptRow[];
 }
 
@@ -45,6 +51,7 @@ export default function CompanyForm() {
   const dispatch = useAppDispatch();
 
   const [form, setForm] = useState<CompanyInput>(EMPTY);
+  const [groups, setGroups] = useState<GroupRow[]>([]);
   const [prompts, setPrompts] = useState<PromptRow[]>([]);
   // Files already on the brand (edit) and files picked but not uploaded yet.
   const [existing, setExisting] = useState<ExistingFile[]>([]);
@@ -57,7 +64,9 @@ export default function CompanyForm() {
     setExisting(toExistingFiles(await listBrandPriceLists(companyId)));
   }, []);
   const loadPrompts = useCallback(async (companyId: number | string) => {
-    setPrompts(toPromptRows(await listBrandPrompts(companyId)));
+    const res = await listBrandPrompts(companyId);
+    setGroups(toGroupRows(res.groups));
+    setPrompts(toPromptRows(res.prompts));
   }, []);
 
   useEffect(() => {
@@ -67,7 +76,7 @@ export default function CompanyForm() {
       getCompany(id),
       loadFiles(id),
       // Unsaved prompts carried over from a failed create win over the (empty) saved list.
-      carried?.prompts ? setPrompts(carried.prompts) : loadPrompts(id),
+      carried?.prompts ? (setGroups(carried.groups ?? []), setPrompts(carried.prompts)) : loadPrompts(id),
     ])
       .then(([c]) => setForm({ name: c.name, status: c.status, description: c.description ?? '' }))
       .catch((err) => setError(apiErrorMessage(err, 'Could not load brand')))
@@ -76,16 +85,18 @@ export default function CompanyForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, loadFiles, loadPrompts]);
 
-  /** Save the prompt list (blank rows are dropped). */
+  /** Save the rule tree (blank rules are dropped; an unnamed group gets "Group N"). */
   const savePrompts = async (companyId: number) => {
     const rows = prompts.filter((p) => p.content.trim());
-    if (!isEdit && rows.length === 0) return;
+    if (!isEdit && rows.length === 0 && groups.length === 0) return;
+    const groupKeys = new Set(groups.map((g) => g.key));
     await saveBrandPrompts(
       companyId,
+      groups.map((g, i) => ({ id: g.id, key: g.key, name: g.name.trim() || `Group ${i + 1}` })),
       rows.map((p) => ({
         id: p.id,
         name: p.name.trim(),
-        group: p.group.trim(),
+        groupKey: p.groupKey != null && groupKeys.has(p.groupKey) ? p.groupKey : null,
         content: p.content.trim(),
         train: p.train,
       })),
@@ -159,7 +170,11 @@ export default function CompanyForm() {
       const what = promptsSaved ? 'files' : 'rules and files';
       const message = `The brand was saved, but its ${what} could not be updated: ${apiErrorMessage(err)}`;
       if (!isEdit) {
-        const state: CarriedState = { error: message, prompts: promptsSaved ? undefined : prompts };
+        const state: CarriedState = {
+          error: message,
+          groups: promptsSaved ? undefined : groups,
+          prompts: promptsSaved ? undefined : prompts,
+        };
         navigate(`/companies/${saved.id}/edit`, { replace: true, state });
       } else {
         setError(message);
@@ -209,7 +224,9 @@ export default function CompanyForm() {
               <BrandPrompts
                 title="Rules"
                 companyId={isEdit ? Number(id) : undefined}
+                groups={groups}
                 rows={prompts}
+                onGroupsChange={setGroups}
                 onChange={setPrompts}
               />
             </CardBody>

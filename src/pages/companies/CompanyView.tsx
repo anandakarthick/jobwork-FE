@@ -11,13 +11,13 @@ import { apiErrorMessage } from '../../lib/api';
 import { formatDate } from '../../lib/format';
 import { useSettings } from '../../context/SettingsContext';
 import { useAppSelector } from '../../store/hooks';
-import type { BrandPrompt, Company, ProductDocument } from '../../types';
+import type { BrandPrompt, BrandRuleGroup, Company, ProductDocument } from '../../types';
 import { DetailField, DetailHero, Empty } from '../../components/ui/Detail';
 import { EditIcon } from '../../components/icons';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import BrandFiles, { toExistingFiles } from '../../components/ui/BrandFiles';
-import BrandPrompts, { toPromptRows } from '../../components/ui/BrandPrompts';
+import BrandPrompts, { toGroupRows, toPromptRows } from '../../components/ui/BrandPrompts';
 import { confirmDialog } from '../../components/ui/Dialog';
 
 export default function CompanyView() {
@@ -27,6 +27,7 @@ export default function CompanyView() {
 
   const [company, setCompany] = useState<Company | null>(null);
   const [docs, setDocs] = useState<ProductDocument[]>([]);
+  const [groups, setGroups] = useState<BrandRuleGroup[]>([]);
   const [prompts, setPrompts] = useState<BrandPrompt[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -50,7 +51,10 @@ export default function CompanyView() {
       .finally(() => setLoading(false));
     void loadDocs();
     listBrandPrompts(id)
-      .then(setPrompts)
+      .then((res) => {
+        setGroups(res.groups);
+        setPrompts(res.prompts);
+      })
       .catch((err) => setError(apiErrorMessage(err, 'Could not load rules')));
   }, [id, loadDocs]);
 
@@ -180,7 +184,12 @@ export default function CompanyView() {
           <Card>
             <CardHeader title="Rules" />
             <CardBody>
-              <BrandPrompts companyId={company?.id} rows={toPromptRows(prompts)} readOnly />
+              <BrandPrompts
+                companyId={company?.id}
+                groups={toGroupRows(groups)}
+                rows={toPromptRows(prompts)}
+                readOnly
+              />
             </CardBody>
           </Card>
         </div>

@@ -1127,24 +1127,30 @@ function QuoteFileCard({
   );
 }
 
-/** Rules of one brand arranged by their group ("" = ungrouped, listed last). */
-function groupRules(list: BrandRule[]): { group: string; rules: BrandRule[] }[] {
-  const byGroup = new Map<string, BrandRule[]>();
+/**
+ * Rules of one brand arranged by their group, in the order the server sent them
+ * (the brand page's group order); older ungrouped rules come last.
+ */
+function groupRules(list: BrandRule[]): { key: string; group: string; rules: BrandRule[] }[] {
+  const byGroup = new Map<string, { key: string; group: string; rules: BrandRule[] }>();
   for (const r of list) {
-    const g = r.group?.trim() ?? '';
-    (byGroup.get(g) ?? byGroup.set(g, []).get(g)!).push(r);
+    const key = r.groupId != null ? `g${r.groupId}` : '';
+    const entry = byGroup.get(key) ?? { key, group: r.groupId != null ? r.group : '', rules: [] };
+    entry.rules.push(r);
+    byGroup.set(key, entry);
   }
-  return [...byGroup.entries()]
-    .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)))
-    .map(([group, rules]) => ({ group, rules }));
+  const groups = [...byGroup.values()];
+  const ungrouped = groups.find((g) => g.key === '');
+  return [...groups.filter((g) => g.key !== ''), ...(ungrouped ? [ungrouped] : [])];
 }
 
 /**
- * Multi-select dropdown of the selected brands' rules (keyword prompts), grouped
- * by brand and then by the rule's group (e.g. MCCB). A group has its own checkbox
- * that ticks or unticks every rule in it — several groups can be on at once — and
- * each rule can still be toggled alone. Common rules come pre-ticked; the pick is
- * sent with the first message and applies to the whole chat.
+ * Multi-select dropdown of the selected brands' rules (keyword prompts), shown as
+ * the same tree as the brand page: brand → group (e.g. MCCB) → its rules. A group
+ * has its own checkbox that ticks or unticks every rule in it — several groups can
+ * be on at once — and can be expanded to tick its rules one by one. Common rules
+ * come pre-ticked; the pick is sent with the first message and applies to the
+ * whole chat.
  */
 function RuleSelect({
   rules,
@@ -1160,6 +1166,8 @@ function RuleSelect({
   loading?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  // Groups whose rules are folded away (brand|group key); every group starts expanded.
+  const [folded, setFolded] = useState<Set<string>>(new Set());
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -1171,6 +1179,12 @@ function RuleSelect({
   const allSelected = rules.length > 0 && value.length === rules.length;
   const toggle = (id: number) =>
     onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
+  const toggleFold = (key: string) =>
+    setFolded((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
   const byBrand = new Map<string, BrandRule[]>();
   for (const r of rules) (byBrand.get(r.brand) ?? byBrand.set(r.brand, []).get(r.brand)!).push(r);
   const label = (r: BrandRule) => r.name || `Rule ${r.id}`;
@@ -1216,7 +1230,7 @@ function RuleSelect({
         <span className="ml-2 shrink-0 text-slate-400">▾</span>
       </button>
       {open && rules.length > 0 && (
-        <div className="popover absolute bottom-full z-20 mb-1 max-h-72 w-full overflow-auto py-1">
+        <div className="popover absolute bottom-full z-20 mb-1 max-h-80 w-full overflow-auto py-1">
           <label className="flex cursor-pointer items-center gap-2 border-b border-slate-100 px-3 py-2 hover:bg-slate-50">
             <input
               type="checkbox"
@@ -1227,17 +1241,32 @@ function RuleSelect({
           </label>
           {[...byBrand.entries()].map(([brand, list]) => (
             <div key={brand}>
-              {/* Brand heading, then its groups (each with a tick-all box), then the rules. */}
+              {/* Brand heading, then the same tree as the brand page: group → its rules. */}
               <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{brand}</p>
-              {groupRules(list).map(({ group, rules: groupRulesList }) => {
+              {groupRules(list).map(({ key, group, rules: groupRulesList }) => {
+                const foldKey = `${brand}|${key}`;
+                const isFolded = folded.has(foldKey);
                 const onCount = groupRulesList.filter((r) => value.includes(r.id)).length;
                 const allOn = onCount === groupRulesList.length;
+                const isGroup = key !== '';
                 return (
-                  <div key={group || '__ungrouped'} className={group ? 'mb-1' : ''}>
-                    {group && (
+                  <div key={key || '__ungrouped'} className="mb-1">
+                    <div
+                      className={`flex items-center gap-2 px-2 py-1.5 ${isGroup ? 'bg-violet-50/60 hover:bg-violet-50' : 'hover:bg-slate-50'}`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleFold(foldKey)}
+                        className="shrink-0 text-slate-400 hover:text-brand-600"
+                        aria-expanded={!isFolded}
+                        aria-label={`${isFolded ? 'Expand' : 'Collapse'} ${group || 'ungrouped rules'}`}
+                        title={isFolded ? 'Show rules' : 'Hide rules'}
+                      >
+                        <ChevronRightIcon className={`h-4 w-4 transition-transform ${isFolded ? '' : 'rotate-90'}`} />
+                      </button>
                       <label
-                        className="flex cursor-pointer items-center gap-2 bg-violet-50/60 px-3 py-1.5 hover:bg-violet-50"
-                        title={`Tick or untick every ${group} rule`}
+                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2"
+                        title={`Tick or untick every rule ${isGroup ? `of ${group}` : 'without a group'}`}
                       >
                         <input
                           type="checkbox"
@@ -1247,28 +1276,35 @@ function RuleSelect({
                           }}
                           onChange={() => toggleGroup(groupRulesList)}
                         />
-                        <Badge tone="violet">{group}</Badge>
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">
-                          {allOn ? 'All rules' : onCount === 0 ? 'None' : `${onCount} of ${groupRulesList.length}`}
-                        </span>
-                        <span className="shrink-0 text-xs text-slate-400">group</span>
-                      </label>
-                    )}
-                    {groupRulesList.map((r) => (
-                      <label
-                        key={r.id}
-                        className={`flex cursor-pointer items-center gap-2 py-2 pr-3 hover:bg-slate-50 ${group ? 'pl-8' : 'pl-3'}`}
-                      >
-                        <input type="checkbox" checked={value.includes(r.id)} onChange={() => toggle(r.id)} />
-                        {byBrand.size > 1 && <Badge tone="blue">{r.brand}</Badge>}
-                        <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{label(r)}</span>
-                        {r.train ? (
-                          <span className="shrink-0 text-xs text-slate-400">common</span>
+                        {isGroup ? (
+                          <Badge tone="violet">{group}</Badge>
                         ) : (
-                          <span className="shrink-0 text-xs text-slate-400">optional</span>
+                          <span className="text-sm font-medium text-slate-500">No group</span>
                         )}
+                        <span className="min-w-0 flex-1 truncate text-xs text-slate-500">
+                          {allOn
+                            ? `all ${groupRulesList.length} rule${groupRulesList.length === 1 ? '' : 's'}`
+                            : onCount === 0
+                              ? `${groupRulesList.length} rule${groupRulesList.length === 1 ? '' : 's'} — none selected`
+                              : `${onCount} of ${groupRulesList.length} selected`}
+                        </span>
                       </label>
-                    ))}
+                    </div>
+                    {!isFolded &&
+                      groupRulesList.map((r) => (
+                        <label
+                          key={r.id}
+                          className="flex cursor-pointer items-center gap-2 py-1.5 pl-10 pr-3 hover:bg-slate-50"
+                        >
+                          <input type="checkbox" checked={value.includes(r.id)} onChange={() => toggle(r.id)} />
+                          <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{label(r)}</span>
+                          {r.train ? (
+                            <span className="shrink-0 text-xs text-slate-400">common</span>
+                          ) : (
+                            <span className="shrink-0 text-xs text-slate-400">optional</span>
+                          )}
+                        </label>
+                      ))}
                   </div>
                 );
               })}

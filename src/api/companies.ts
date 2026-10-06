@@ -1,5 +1,5 @@
 import { api } from '../lib/api';
-import type { BrandPrompt, Company, CompanyStatus, Paginated, ProductDocument } from '../types';
+import type { BrandPrompt, BrandRuleGroup, Company, CompanyStatus, Paginated, ProductDocument } from '../types';
 
 export interface CompanyInput {
   name: string;
@@ -33,37 +33,51 @@ export const deleteCompany = (id: number | string) => api.delete(`/companies/${i
 
 // ---------- Brand keyword prompts ----------
 
-/** A rule offered in the Get Quote picker: a brand's prompt, trained = ticked by default. */
+/** A rule offered in the Get Quote picker: a brand's prompt, common = ticked by default. */
 export interface BrandRule {
   id: number;
   name: string;
-  /** Group label (e.g. "MCCB"); "" = ungrouped. */
+  /** The rule's group (e.g. "MCCB"); null / "" = an older ungrouped rule. */
+  groupId: number | null;
   group: string;
   brand: string;
   train: boolean;
 }
 
-/** Keyword prompts of several brands by name, for the rule picker. */
+/** Keyword prompts of several brands by name, for the rule picker — already in group order. */
 export const listRulesForBrands = (brands: string[]) =>
   api
     .get<BrandRule[]>('/companies/prompts', { params: { brands: brands.join(',') } })
     .then((r) => r.data);
 
+/** A group row as saved: `id` present = existing, absent = new; `key` is what rules point at. */
+export interface RuleGroupInput {
+  id?: number;
+  key: string;
+  name: string;
+}
+
 /** One row of the prompt list as saved: `id` present = existing, absent = new. */
 export interface BrandPromptInput {
   id?: number;
   name: string;
-  group: string;
+  /** Form key of the rule's group (RuleGroupInput.key); null = ungrouped. */
+  groupKey: string | null;
   content: string;
   train: boolean;
 }
 
-export const listBrandPrompts = (companyId: number | string) =>
-  api.get<BrandPrompt[]>(`/companies/${companyId}/prompts`).then((r) => r.data);
+export interface BrandRules {
+  groups: BrandRuleGroup[];
+  prompts: BrandPrompt[];
+}
 
-/** Save the brand's whole prompt list (rows left out are deleted). */
-export const saveBrandPrompts = (companyId: number | string, prompts: BrandPromptInput[]) =>
-  api.put<BrandPrompt[]>(`/companies/${companyId}/prompts`, { prompts }).then((r) => r.data);
+export const listBrandPrompts = (companyId: number | string) =>
+  api.get<BrandRules>(`/companies/${companyId}/prompts`).then((r) => r.data);
+
+/** Save the brand's whole rule tree (groups and rules left out are deleted). */
+export const saveBrandPrompts = (companyId: number | string, groups: RuleGroupInput[], prompts: BrandPromptInput[]) =>
+  api.put<BrandRules>(`/companies/${companyId}/prompts`, { groups, prompts }).then((r) => r.data);
 
 /** Train one rule into Claude (upload its text to Anthropic's Files API). */
 export const trainBrandPromptIntoClaude = (companyId: number | string, promptId: number) =>

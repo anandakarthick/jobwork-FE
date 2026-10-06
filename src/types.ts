@@ -93,13 +93,22 @@ export interface ProductDocument {
   aiPages?: number | null;
 }
 
+/** A named group of a brand's rules (e.g. "MCCB"); rules are created inside a group. */
+export interface BrandRuleGroup {
+  id: number;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** A brand's keyword prompt — sent to the AI for that brand's quotes when trained. */
 export interface BrandPrompt {
   id: number;
   /** Label the user gave the prompt, e.g. "Rule 1". */
   name: string;
-  /** Group the rule belongs to (e.g. "MCCB"); "" = ungrouped. */
-  groupName: string;
+  /** The group the rule lives in; null = an older rule created before groups. */
+  groupId: number | null;
   content: string;
   train: boolean;
   createdAt: string;
