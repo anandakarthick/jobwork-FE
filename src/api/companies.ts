@@ -37,6 +37,8 @@ export const deleteCompany = (id: number | string) => api.delete(`/companies/${i
 export interface BrandRule {
   id: number;
   name: string;
+  /** Group label (e.g. "MCCB"); "" = ungrouped. */
+  group: string;
   brand: string;
   train: boolean;
 }
@@ -51,6 +53,7 @@ export const listRulesForBrands = (brands: string[]) =>
 export interface BrandPromptInput {
   id?: number;
   name: string;
+  group: string;
   content: string;
   train: boolean;
 }

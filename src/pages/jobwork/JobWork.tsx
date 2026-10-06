@@ -535,7 +535,8 @@ export default function JobWork() {
                 {quote.rules && quote.rules.length > 0 ? (
                   quote.rules.map((r) => (
                     <Badge key={r.id} tone="amber">
-                      {r.brand} · {r.name || `Rule ${r.id}`}
+                      {r.brand} · {r.group ? `${r.group} › ` : ''}
+                      {r.name || `Rule ${r.id}`}
                     </Badge>
                   ))
                 ) : (
@@ -1126,10 +1127,24 @@ function QuoteFileCard({
   );
 }
 
+/** Rules of one brand arranged by their group ("" = ungrouped, listed last). */
+function groupRules(list: BrandRule[]): { group: string; rules: BrandRule[] }[] {
+  const byGroup = new Map<string, BrandRule[]>();
+  for (const r of list) {
+    const g = r.group?.trim() ?? '';
+    (byGroup.get(g) ?? byGroup.set(g, []).get(g)!).push(r);
+  }
+  return [...byGroup.entries()]
+    .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)))
+    .map(([group, rules]) => ({ group, rules }));
+}
+
 /**
  * Multi-select dropdown of the selected brands' rules (keyword prompts), grouped
- * by brand. Trained rules come pre-ticked; the pick is sent with the first
- * message and applies to the whole chat.
+ * by brand and then by the rule's group (e.g. MCCB). A group has its own checkbox
+ * that ticks or unticks every rule in it — several groups can be on at once — and
+ * each rule can still be toggled alone. Common rules come pre-ticked; the pick is
+ * sent with the first message and applies to the whole chat.
  */
 function RuleSelect({
   rules,
@@ -1159,7 +1174,25 @@ function RuleSelect({
   const byBrand = new Map<string, BrandRule[]>();
   for (const r of rules) (byBrand.get(r.brand) ?? byBrand.set(r.brand, []).get(r.brand)!).push(r);
   const label = (r: BrandRule) => r.name || `Rule ${r.id}`;
+  // Tick/untick a whole group: on when every rule of it is selected.
+  const toggleGroup = (list: BrandRule[]) => {
+    const ids = list.map((r) => r.id);
+    const allOn = ids.every((id) => value.includes(id));
+    onChange(allOn ? value.filter((id) => !ids.includes(id)) : [...value, ...ids.filter((id) => !value.includes(id))]);
+  };
 
+  // Summary: a fully selected group is named once ("MCCB (3)"), other selected
+  // rules by name (with brand when several brands) — never "All…".
+  const summaryParts: string[] = [];
+  for (const [brand, list] of byBrand) {
+    for (const { group, rules: groupRulesList } of groupRules(list)) {
+      const picked = groupRulesList.filter((r) => value.includes(r.id));
+      if (picked.length === 0) continue;
+      const prefix = byBrand.size > 1 ? `${brand} · ` : '';
+      if (group && picked.length === groupRulesList.length) summaryParts.push(`${prefix}${group} (${picked.length})`);
+      else summaryParts.push(...picked.map((r) => `${prefix}${group ? `${group} › ` : ''}${label(r)}`));
+    }
+  }
   const summary = loading
     ? 'Loading rules…'
     : rules.length === 0
@@ -1168,11 +1201,7 @@ function RuleSelect({
         : 'No rules on these brands'
       : value.length === 0
         ? 'No rules selected'
-        : // Name the selected rules (with brand when several brands), never "All…".
-          rules
-            .filter((r) => value.includes(r.id))
-            .map((r) => (byBrand.size > 1 ? `${r.brand} · ${label(r)}` : label(r)))
-            .join(', ');
+        : summaryParts.join(', ');
 
   return (
     <div className="relative" ref={ref}>
@@ -1198,20 +1227,51 @@ function RuleSelect({
           </label>
           {[...byBrand.entries()].map(([brand, list]) => (
             <div key={brand}>
-              {/* Brand heading, then each rule tagged with its brand as well. */}
+              {/* Brand heading, then its groups (each with a tick-all box), then the rules. */}
               <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{brand}</p>
-              {list.map((r) => (
-                <label key={r.id} className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-slate-50">
-                  <input type="checkbox" checked={value.includes(r.id)} onChange={() => toggle(r.id)} />
-                  <Badge tone="blue">{r.brand}</Badge>
-                  <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{label(r)}</span>
-                  {r.train ? (
-                    <span className="shrink-0 text-xs text-slate-400">common</span>
-                  ) : (
-                    <span className="shrink-0 text-xs text-slate-400">optional</span>
-                  )}
-                </label>
-              ))}
+              {groupRules(list).map(({ group, rules: groupRulesList }) => {
+                const onCount = groupRulesList.filter((r) => value.includes(r.id)).length;
+                const allOn = onCount === groupRulesList.length;
+                return (
+                  <div key={group || '__ungrouped'} className={group ? 'mb-1' : ''}>
+                    {group && (
+                      <label
+                        className="flex cursor-pointer items-center gap-2 bg-violet-50/60 px-3 py-1.5 hover:bg-violet-50"
+                        title={`Tick or untick every ${group} rule`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={allOn}
+                          ref={(el) => {
+                            if (el) el.indeterminate = onCount > 0 && !allOn;
+                          }}
+                          onChange={() => toggleGroup(groupRulesList)}
+                        />
+                        <Badge tone="violet">{group}</Badge>
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">
+                          {allOn ? 'All rules' : onCount === 0 ? 'None' : `${onCount} of ${groupRulesList.length}`}
+                        </span>
+                        <span className="shrink-0 text-xs text-slate-400">group</span>
+                      </label>
+                    )}
+                    {groupRulesList.map((r) => (
+                      <label
+                        key={r.id}
+                        className={`flex cursor-pointer items-center gap-2 py-2 pr-3 hover:bg-slate-50 ${group ? 'pl-8' : 'pl-3'}`}
+                      >
+                        <input type="checkbox" checked={value.includes(r.id)} onChange={() => toggle(r.id)} />
+                        {byBrand.size > 1 && <Badge tone="blue">{r.brand}</Badge>}
+                        <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{label(r)}</span>
+                        {r.train ? (
+                          <span className="shrink-0 text-xs text-slate-400">common</span>
+                        ) : (
+                          <span className="shrink-0 text-xs text-slate-400">optional</span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>

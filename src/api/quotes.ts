@@ -56,7 +56,7 @@ export interface Quote {
   /** Ids of the brand rules chosen for this chat; null = every trained rule (older chats). */
   promptIds?: number[] | null;
   /** The chosen rules resolved to names, for display. */
-  rules?: { id: number; name: string; brand: string }[];
+  rules?: { id: number; name: string; group?: string; brand: string }[];
   /** Feeder-grouped BOM (present for BOM-style quotes); the download is built
    *  from this, so the chat edits it. Loosely typed — only counted for display. */
   bomJson?: { feeders?: { items?: unknown[] }[] }[] | null;

@@ -82,7 +82,13 @@ export default function CompanyForm() {
     if (!isEdit && rows.length === 0) return;
     await saveBrandPrompts(
       companyId,
-      rows.map((p) => ({ id: p.id, name: p.name.trim(), content: p.content.trim(), train: p.train })),
+      rows.map((p) => ({
+        id: p.id,
+        name: p.name.trim(),
+        group: p.group.trim(),
+        content: p.content.trim(),
+        train: p.train,
+      })),
     );
   };
 

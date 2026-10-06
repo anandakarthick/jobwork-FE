@@ -98,6 +98,8 @@ export interface BrandPrompt {
   id: number;
   /** Label the user gave the prompt, e.g. "Rule 1". */
   name: string;
+  /** Group the rule belongs to (e.g. "MCCB"); "" = ungrouped. */
+  groupName: string;
   content: string;
   train: boolean;
   createdAt: string;

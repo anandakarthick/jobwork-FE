@@ -14,6 +14,8 @@ export interface PromptRow {
   key: string;
   id?: number;
   name: string;
+  /** Group label (e.g. "MCCB") — Get Quote ticks/unticks a whole group; "" = ungrouped. */
+  group: string;
   content: string;
   train: boolean;
   /** Last saved change — absent on a row that hasn't been saved yet. */
@@ -32,6 +34,7 @@ export const toPromptRows = (prompts: BrandPrompt[]): PromptRow[] =>
     key: `saved-${p.id}`,
     id: p.id,
     name: p.name,
+    group: p.groupName ?? '',
     content: p.content,
     train: p.train,
     updatedAt: p.updatedAt,
@@ -99,9 +102,15 @@ export default function BrandPrompts({ rows, companyId, title, readOnly = false,
     onChange?.(rows.map((r) => (r.key === key ? { ...r, ...change } : r)));
   const addRow = () => {
     const key = `new-${nextNewKey++}`;
-    onChange?.([...rows, { key, name: `Rule ${rows.length + 1}`, content: '', train: true }]);
+    onChange?.([...rows, { key, name: `Rule ${rows.length + 1}`, group: '', content: '', train: true }]);
     setOpen((prev) => new Set(prev).add(key));
   };
+  // Group names already used on this brand — offered as suggestions so the same
+  // group is spelled the same way on every rule.
+  const groupNames = [...new Set(rows.map((r) => r.group.trim()).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const groupListId = `rule-groups-${companyId ?? 'new'}`;
 
   // Refresh the Claude state while any rule is training.
   const training = rows.some((r) => r.aiStatus === 'PROCESSING');
@@ -233,16 +242,32 @@ export default function BrandPrompts({ rows, companyId, title, readOnly = false,
                     </button>
 
                     {readOnly ? (
-                      <span className="shrink-0 text-sm font-medium text-slate-800">{label}</span>
+                      <span className="flex shrink-0 items-center gap-2 text-sm font-medium text-slate-800">
+                        {r.group.trim() && <Badge tone="violet">{r.group.trim()}</Badge>}
+                        {label}
+                      </span>
                     ) : (
-                      <input
-                        className="input w-56 shrink-0"
-                        value={r.name}
-                        onChange={(e) => patch(r.key, { name: e.target.value })}
-                        placeholder={`Rule ${i + 1}`}
-                        maxLength={150}
-                        aria-label={`Name of rule ${i + 1}`}
-                      />
+                      <>
+                        {/* Group (e.g. MCCB): Get Quote ticks/unticks every rule of a group at once. */}
+                        <input
+                          className="input w-32 shrink-0"
+                          value={r.group}
+                          list={groupListId}
+                          onChange={(e) => patch(r.key, { group: e.target.value })}
+                          placeholder="Group"
+                          maxLength={100}
+                          aria-label={`Group of rule ${i + 1}`}
+                          title="Group this rule belongs to, e.g. MCCB. On Get Quote a whole group can be ticked or unticked at once."
+                        />
+                        <input
+                          className="input w-56 shrink-0"
+                          value={r.name}
+                          onChange={(e) => patch(r.key, { name: e.target.value })}
+                          placeholder={`Rule ${i + 1}`}
+                          maxLength={150}
+                          aria-label={`Name of rule ${i + 1}`}
+                        />
+                      </>
                     )}
 
                     {/* One-line preview while collapsed; click it to open the row. */}
@@ -340,6 +365,13 @@ export default function BrandPrompts({ rows, companyId, title, readOnly = false,
               );
             })}
           </ul>
+          {!readOnly && groupNames.length > 0 && (
+            <datalist id={groupListId}>
+              {groupNames.map((g) => (
+                <option key={g} value={g} />
+              ))}
+            </datalist>
+          )}
         </>
       )}
 
@@ -347,9 +379,11 @@ export default function BrandPrompts({ rows, companyId, title, readOnly = false,
         <>
           <p className="mt-2 text-xs text-slate-400">
             Rules about this brand’s products — series names, trade shorthand, what to prefer, what to
-            replace. Give each one a name. On Get Quote every rule of the brand is offered; the ones ticked
+            replace. Give each one a name and, optionally, a <strong>Group</strong> (e.g. MCCB, ACB,
+            Accessories): on Get Quote the rules are listed under their group and a whole group can be
+            ticked or unticked at once. Every rule of the brand is offered; the ones ticked
             <strong> Common</strong> are selected by default, the others start unticked. The user
-            can tick or untick any rule per chat.
+            can tick or untick any rule or group per chat.
             {showTraining && (
               <>
                 {' '}

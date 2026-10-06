@@ -96,9 +96,10 @@ export default function UserGuide() {
           <h4 className="mt-4 text-sm font-semibold text-slate-900">Rules</h4>
           <ol className="mt-2 space-y-2">
             <Step n={1}>Brands → open the brand → Edit → <strong>Add rule</strong>. Give it a name (e.g. &quot;Mandatory accessories&quot;) and write the rule in plain language. Unlimited length; one topic per rule keeps them easy to tick on and off.</Step>
-            <Step n={2}>Tick <strong>Common</strong> for rules that should be pre-selected on every quote for this brand. Un-ticked rules stay available but start unselected.</Step>
-            <Step n={3}>Save. With the Claude engine each saved rule shows <em>not trained</em> until you click <strong>Train</strong> (↻) — a confirm appears, then the rule is stored in Claude and shows <strong>trained</strong> (green) with its id on hover. <strong>Train all</strong> does every rule at once.</Step>
-            <Step n={4}>Edit a rule → it shows <em>edited — save, then Train again</em>. Until you train it again, the quote still receives the saved text, so nothing is lost. Removing a rule removes its copy from Claude.</Step>
+            <Step n={2}><strong>Group</strong> (optional) — type a group such as <Example>MCCB</Example>, <Example>ACB</Example> or <Example>Accessories</Example>. Rules with the same group are listed together on Get Quote under one group checkbox, so the whole group can be ticked or unticked in one click. Existing group names are suggested as you type; leave it empty for an ungrouped rule.</Step>
+            <Step n={3}>Tick <strong>Common</strong> for rules that should be pre-selected on every quote for this brand. Un-ticked rules stay available but start unselected.</Step>
+            <Step n={4}>Save. With the Claude engine each saved rule shows <em>not trained</em> until you click <strong>Train</strong> (↻) — a confirm appears, then the rule is stored in Claude and shows <strong>trained</strong> (green) with its id on hover. <strong>Train all</strong> does every rule at once.</Step>
+            <Step n={5}>Edit a rule → it shows <em>edited — save, then Train again</em>. Until you train it again, the quote still receives the saved text, so nothing is lost. Removing a rule removes its copy from Claude. Changing only the group or name does not need re-training.</Step>
           </ol>
           <Tip>Write rules as the engineer would brief a colleague: what to identify in the BOQ, which series/release to pick for which case, what to do when the BOQ is silent, which accessories are mandatory, and the exact status wording for items not found.</Tip>
           <h4 className="mt-4 text-sm font-semibold text-slate-900">Reference files (price lists)</h4>
@@ -120,7 +121,7 @@ export default function UserGuide() {
           <ol className="mt-3 space-y-2">
             <Step n={1}><strong>Customer</strong> — pick the customer the quote is for.</Step>
             <Step n={2}><strong>Brand</strong> — pick one or more brands. Their price lists and rules become available.</Step>
-            <Step n={3}><strong>Rules</strong> — the brand&apos;s rules appear with the <em>Common</em> ones already ticked. Tick or untick any rule for this quote; each rule shows its brand name when several brands are selected.</Step>
+            <Step n={3}><strong>Rules</strong> — open the Rules dropdown: the brand&apos;s rules are listed under their <strong>groups</strong> (e.g. MCCB, ACB) with the <em>Common</em> ones already ticked. Tick a <strong>group</strong> checkbox to select every rule in that group, untick it to drop them all — select as many groups as the BOQ needs (e.g. MCCB + Accessories). Inside a group you can still tick or untick single rules; a half-selected group shows &quot;2 of 5&quot;. <strong>Select all</strong> takes every rule of every selected brand. The box summarises the pick, e.g. <Example>MCCB (4), Accessories › Spreader links</Example>.</Step>
             <Step n={4}><strong>Attach the BOQ</strong> (📎) — Excel, PDF, Word, image or text; several files are fine.</Step>
             <Step n={5}><strong>Optional message</strong> — anything extra the engineer wants applied, e.g. <Example>Quote only the MCCB feeders, skip the busbar.</Example> or <Example>Customer prefers 36kA where the BOQ says 25kA.</Example></Step>
             <Step n={6}>Press <strong>Send</strong>. The progress card shows the real stage (reading the BOQ → Claude reading the price lists → verifying codes and prices → saving). A quote takes 3–6 minutes.</Step>
