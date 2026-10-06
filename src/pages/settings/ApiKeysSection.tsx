@@ -32,10 +32,6 @@ const OPENAI_MODELS: { id: string; label: string }[] = [
   { id: 'gpt-4o', label: 'GPT-4o — fast chat model' },
   { id: 'o3', label: 'o3 — reasoning model' },
 ];
-const CLAUDE_FAST_MODELS: { id: string; label: string }[] = [
-  { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 — cheapest (recommended for small jobs)' },
-  { id: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
-];
 const OTHER = '__other__';
 
 /** A model dropdown with an "Other…" escape hatch for ids not in the list. */
@@ -119,7 +115,6 @@ export default function ApiKeysSection() {
   const [anthropicModel, setAnthropicModel] = useState('');
   const [quoteEngine, setQuoteEngine] = useState<QuoteEngine>('database');
   const [anthropicWorkspaceId, setAnthropicWorkspaceId] = useState('');
-  const [anthropicFastModel, setAnthropicFastModel] = useState('claude-haiku-4-5-20251001');
   const [openaiKey, setOpenaiKey] = useState('');
   const [anthropicKey, setAnthropicKey] = useState('');
   const [openaiBalance, setOpenaiBalance] = useState('');
@@ -141,7 +136,6 @@ export default function ApiKeysSection() {
         setAnthropicModel(s.anthropicModel);
         setQuoteEngine(s.quoteEngine ?? 'database');
         setAnthropicWorkspaceId(s.anthropicWorkspaceId ?? '');
-        setAnthropicFastModel(s.anthropicFastModel || 'claude-haiku-4-5-20251001');
         setOpenaiBalance(s.openaiBalance != null ? String(s.openaiBalance) : '');
         setAnthropicBalance(s.anthropicBalance != null ? String(s.anthropicBalance) : '');
         setBalanceCurrency(s.balanceCurrency || 'USD');
@@ -163,7 +157,6 @@ export default function ApiKeysSection() {
         anthropicModel: anthropicModel || undefined,
         quoteEngine,
         anthropicWorkspaceId: anthropicWorkspaceId.trim(),
-        anthropicFastModel: anthropicFastModel || undefined,
         openaiApiKey: openaiKey || undefined,
         anthropicApiKey: anthropicKey || undefined,
         openaiBalance: openaiBalance === '' ? null : Number(openaiBalance),
@@ -397,20 +390,6 @@ export default function ApiKeysSection() {
                     Remove stored key
                   </button>
                 )}
-              </div>
-              <div>
-                <label className="label" htmlFor="anthropicFastModel">Fast model (small jobs)</label>
-                <ModelSelect
-                  id="anthropicFastModel"
-                  value={anthropicFastModel}
-                  options={CLAUDE_FAST_MODELS}
-                  disabled={!canEdit}
-                  onChange={setAnthropicFastModel}
-                />
-                <p className="mt-1 text-xs text-slate-400">
-                  Used for the cheap steps — picking the catalogue sections a BOQ needs and answering
-                  simple chat questions. Quote generation and changes always use the main model above.
-                </p>
               </div>
               <div>
                 <label className="label" htmlFor="anthropicWorkspaceId">Workspace ID (for training files)</label>

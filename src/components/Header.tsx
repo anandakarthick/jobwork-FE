@@ -142,20 +142,6 @@ export default function Header({ onMenuClick }: HeaderProps) {
                   <LockIcon className="h-4 w-4" />
                   Change password
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    navigate('/guide');
-                  }}
-                  className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5v-15Z" />
-                    <path strokeLinecap="round" d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20M8 7h8M8 10.5h8" />
-                  </svg>
-                  User guide
-                </button>
                 <div className="my-1 border-t border-slate-100" />
                 <button
                   type="button"

@@ -341,7 +341,7 @@ export default function BrandFiles({
                         >
                           <Badge tone={STATUS_TONE[aiStatus]}>
                             {aiStatus === 'COMPLETED'
-                              ? `trained · ${(doc.aiFileChars ?? 0).toLocaleString()} chars${doc.aiPages ? ` · ${doc.aiPages} pages` : ''}${doc.aiSectionCount ? ` · ${doc.aiSectionCount} sections` : ''}`
+                              ? `trained · text · ${(doc.aiFileChars ?? 0).toLocaleString()} chars${doc.aiPages ? ` · ${doc.aiPages} pages` : ''}`
                               : STATUS_LABEL[aiStatus]}
                           </Badge>
                           {aiStatus === 'COMPLETED' && doc.aiFileId && (
@@ -503,12 +503,10 @@ export default function BrandFiles({
             onChange={(e) => addFiles(e.target.files)}
           />
           <p className="mt-2 text-xs text-slate-400">
-            PDF, image, Word or Excel. With the <b>Claude knowledge</b> engine (Settings → API Keys) a
-            file saved with <b>Train</b> ticked is trained automatically: its text (with OCR of picture
-            pages) is stored in Claude and a catalogue index with sections is built, so quotes attach
-            only what a BOQ needs. Only the file id Claude returns is kept here — nothing is parsed
-            into the database. Use Train again (↻) after replacing a price list; removing a file (or
-            un-ticking Train) removes its copy from Claude. With the <b>database</b> engine, ticked
+            PDF, image, Word or Excel. With the <b>Claude knowledge</b> engine (Settings → API Keys)
+            save the file first, then click Train (↻): its text is trained into Claude and only the
+            file id Claude returns is kept here — nothing is parsed into the database. Removing a file
+            (or un-ticking Train) removes its copy from Claude. With the <b>database</b> engine, ticked
             files are read into the catalogue when you save.
           </p>
         </>

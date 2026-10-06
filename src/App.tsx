@@ -29,7 +29,6 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Settings from './pages/settings/Settings';
 import ChangePassword from './pages/ChangePassword';
-import UserGuide from './pages/UserGuide';
 import DialogHost from './components/ui/Dialog';
 
 export default function App() {
@@ -93,7 +92,6 @@ export default function App() {
                   they have the relevant permissions for the admin sections. */}
               <Route path="/settings" element={<Settings />} />
               <Route path="/change-password" element={<ChangePassword />} />
-              <Route path="/guide" element={<UserGuide />} />
             </Route>
           </Route>
 
