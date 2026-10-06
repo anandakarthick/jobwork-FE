@@ -75,6 +75,10 @@ export interface BrandRules {
 export const listBrandPrompts = (companyId: number | string) =>
   api.get<BrandRules>(`/companies/${companyId}/prompts`).then((r) => r.data);
 
+/** Rename one rule group in place; returns the brand's groups. */
+export const renameBrandRuleGroup = (companyId: number | string, groupId: number, name: string) =>
+  api.patch<BrandRuleGroup[]>(`/companies/${companyId}/rule-groups/${groupId}`, { name }).then((r) => r.data);
+
 /** Save the brand's whole rule tree (groups and rules left out are deleted). */
 export const saveBrandPrompts = (companyId: number | string, groups: RuleGroupInput[], prompts: BrandPromptInput[]) =>
   api.put<BrandRules>(`/companies/${companyId}/prompts`, { groups, prompts }).then((r) => r.data);

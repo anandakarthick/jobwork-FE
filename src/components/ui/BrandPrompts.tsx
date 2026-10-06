@@ -7,7 +7,7 @@ import { useAppSelector } from '../../store/hooks';
 import type { BrandPrompt, BrandRuleGroup, IngestStatus } from '../../types';
 import Badge from './Badge';
 import { confirmDialog } from './Dialog';
-import { ChevronRightIcon, PlusIcon, RefreshIcon, TrashIcon } from '../icons';
+import { ChevronRightIcon, EditIcon, PlusIcon, RefreshIcon, TrashIcon } from '../icons';
 
 /** One rule group in the form. `id` is set once the group is saved. */
 export interface GroupRow {
@@ -84,6 +84,11 @@ interface Props {
   readOnly?: boolean;
   onGroupsChange?: (next: GroupRow[]) => void;
   onChange?: (next: PromptRow[]) => void;
+  /**
+   * View pages: rename a saved group in place (pencil → type → Enter). The page
+   * saves it through the API and refreshes its state; absent = names are static.
+   */
+  onRenameGroup?: (groupId: number, name: string) => Promise<void>;
 }
 
 /**
@@ -105,12 +110,37 @@ export default function BrandPrompts({
   readOnly = false,
   onGroupsChange,
   onChange,
+  onRenameGroup,
 }: Props) {
   const { settings } = useSettings();
   const claudeEngine = useAppSelector((s) => s.llmStatus.status?.quoteEngine) === 'claude';
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [error, setError] = useState('');
+  // Inline rename on the view page: which group is being renamed and the draft name.
+  const [renaming, setRenaming] = useState<{ key: string; name: string; saving: boolean } | null>(null);
+
+  const startRename = (g: GroupRow) => {
+    setRenaming({ key: g.key, name: g.name, saving: false });
+    window.setTimeout(() => document.getElementById(`group-rename-${g.key}`)?.focus(), 0);
+  };
+  const commitRename = async (g: GroupRow) => {
+    if (!renaming || renaming.key !== g.key || g.id == null || !onRenameGroup) return;
+    const name = renaming.name.trim();
+    if (!name || name === g.name) {
+      setRenaming(null);
+      return;
+    }
+    setRenaming({ ...renaming, saving: true });
+    setError('');
+    try {
+      await onRenameGroup(g.id, name);
+      setRenaming(null);
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not rename the group'));
+      setRenaming({ ...renaming, saving: false });
+    }
+  };
 
   const toggle = (key: string) =>
     setOpen((prev) => {
@@ -397,8 +427,51 @@ export default function BrandPrompts({
               aria-label={`Name of group ${index + 1}`}
               title={dup ? 'Another group has this name' : undefined}
             />
+          ) : g && renaming?.key === g.key ? (
+            /* View page: rename in place — Enter saves, Escape cancels. */
+            <span className="flex shrink-0 items-center gap-1.5">
+              <input
+                id={`group-rename-${g.key}`}
+                className="input w-64 font-medium"
+                value={renaming.name}
+                disabled={renaming.saving}
+                maxLength={100}
+                onChange={(e) => setRenaming({ ...renaming, name: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void commitRename(g);
+                  } else if (e.key === 'Escape') setRenaming(null);
+                }}
+                aria-label={`New name for ${label}`}
+              />
+              <button
+                type="button"
+                className="btn-primary btn-sm"
+                disabled={renaming.saving}
+                onClick={() => void commitRename(g)}
+              >
+                {renaming.saving ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" className="btn-ghost btn-sm" disabled={renaming.saving} onClick={() => setRenaming(null)}>
+                Cancel
+              </button>
+            </span>
           ) : (
-            <span className="shrink-0 text-sm font-semibold text-slate-800">{label}</span>
+            <span className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-slate-800">
+              {label}
+              {g && g.id != null && onRenameGroup && (
+                <button
+                  type="button"
+                  onClick={() => startRename(g)}
+                  className="text-slate-400 hover:text-brand-600"
+                  aria-label={`Rename ${label}`}
+                  title="Rename group"
+                >
+                  <EditIcon className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </span>
           )}
           <span className="min-w-0 flex-1 truncate text-xs text-slate-500">
             {list.length === 0 ? 'No rules yet' : `${list.length} rule${list.length === 1 ? '' : 's'}`}

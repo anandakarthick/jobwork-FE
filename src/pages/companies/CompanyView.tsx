@@ -5,8 +5,10 @@ import {
   getCompany,
   listBrandPriceLists,
   listBrandPrompts,
+  renameBrandRuleGroup,
   setCompanyStatus,
 } from '../../api/companies';
+import { useAuth } from '../../context/AuthContext';
 import { apiErrorMessage } from '../../lib/api';
 import { formatDate } from '../../lib/format';
 import { useSettings } from '../../context/SettingsContext';
@@ -24,6 +26,8 @@ export default function CompanyView() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { settings } = useSettings();
+  const { can } = useAuth();
+  const canEdit = can('companies.edit');
 
   const [company, setCompany] = useState<Company | null>(null);
   const [docs, setDocs] = useState<ProductDocument[]>([]);
@@ -189,6 +193,11 @@ export default function CompanyView() {
                 groups={toGroupRows(groups)}
                 rows={toPromptRows(prompts)}
                 readOnly
+                onRenameGroup={
+                  canEdit
+                    ? async (groupId, name) => setGroups(await renameBrandRuleGroup(company.id, groupId, name))
+                    : undefined
+                }
               />
             </CardBody>
           </Card>
