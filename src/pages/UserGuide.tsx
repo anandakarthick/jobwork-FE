@@ -106,7 +106,7 @@ export default function UserGuide() {
           <h4 className="mt-4 text-sm font-semibold text-slate-900">Reference files (price lists)</h4>
           <ol className="mt-2 space-y-2">
             <Step n={1}>Edit → <strong>Add file</strong> → choose the PDF (any size; Word, Excel, images also accepted). Give each file a name, keep <strong>Train</strong> ticked, Save.</Step>
-            <Step n={2}>Click <strong>Train</strong> (↻) on the file. The text of every page is extracted; picture-only pages and images are read by local OCR (no cost); the complete text is stored in Claude and a <strong>catalogue index</strong> is built (one line per product, grouped by the price list&apos;s sections). The row shows <em>training…</em> then <strong>trained · N chars · N pages · N sections</strong>.</Step>
+            <Step n={2}>Training starts by itself for every ticked file: the text of every page is extracted; picture-only pages and images are read by local OCR (no cost); the complete text is stored in Claude and a <strong>catalogue index</strong> is built (one line per product, grouped by the price list&apos;s sections, one Claude file per section). The row shows <em>training…</em> then <strong>trained · N chars · N pages · N sections</strong>. At quote time only the sections a BOQ needs are attached — that is what keeps each quote cheap.</Step>
             <Step n={3}>A big catalogue (150+ pages) takes 20–40 minutes the first time (OCR); re-training the same file later takes seconds. Replace a price list with a new revision → Train again.</Step>
             <Step n={4}>Removing a file (or un-ticking Train) removes it from Claude.</Step>
           </ol>
