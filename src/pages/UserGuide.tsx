@@ -197,6 +197,7 @@ export default function UserGuide() {
             <ul className="mt-1 list-[circle] space-y-1 pl-5">
               <li><em>Provider</em> Claude (recommended) or OpenAI, with the model (dropdown) and API key.</li>
               <li><em>Quote engine</em>: <strong>Claude knowledge</strong> = brand files and rules live in Claude by id (recommended); <strong>Parsed price list</strong> = the older database method.</li>
+              <li><em>Send only the matching price-list pages</em> (Claude knowledge): each quote and chat message sends Claude only the price-list pages its BOQ, rules and message need — found with the page search — instead of the whole files, at a fraction of the cost. Codes and prices are still checked against the complete files. A price list becomes searchable when it is trained (Train / Train again); the quote reply says how many pages were sent.</li>
               <li><em>Workspace ID</em> — needed to train files when the Anthropic key is an organisation-wide key (console.anthropic.com → Settings → Workspaces, starts with <Example>wrkspc_</Example>).</li>
               <li><em>Credit balance</em> — entered by you; the header shows balance − estimated spend.</li>
             </ul>

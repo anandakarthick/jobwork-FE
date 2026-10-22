@@ -11,6 +11,10 @@ export interface LlmSettings {
   quoteEngine: QuoteEngine;
   /** Anthropic workspace id ("wrkspc_…") — needed by the Files API with an org-wide key. */
   anthropicWorkspaceId?: string;
+  /** Claude engine: send only the matching price-list pages (pgvector search). */
+  pageSearch?: boolean;
+  /** Whether the server has the page-search database configured (VECTOR_DATABASE_URL). */
+  pageSearchAvailable?: boolean;
   openaiKeySet: boolean;
   anthropicKeySet: boolean;
   openaiBalance: number | null;
@@ -27,6 +31,7 @@ export interface UpdateLlmPayload {
   anthropicModel?: string;
   quoteEngine?: QuoteEngine;
   anthropicWorkspaceId?: string;
+  pageSearch?: boolean;
   openaiApiKey?: string;
   anthropicApiKey?: string;
   clearOpenaiKey?: boolean;
@@ -103,6 +108,29 @@ export interface UpdateSmtpPayload {
 }
 
 export const getSmtpSettings = () => api.get<SmtpSettings>('/settings/smtp').then((r) => r.data);
+
+/** Settings → Notifications: who receives the training emails and for which events. */
+export interface NotificationSettings {
+  trainingEnabled: boolean;
+  trainingRecipients: string[];
+  trainingNotifyStarter: boolean;
+  trainingOnStarted: boolean;
+  trainingOnCompleted: boolean;
+  trainingOnFailed: boolean;
+  updatedAt: string | null;
+}
+
+export type UpdateNotificationsPayload = Partial<Omit<NotificationSettings, 'updatedAt'>>;
+
+export const getNotificationSettings = () =>
+  api.get<NotificationSettings>('/settings/notifications').then((r) => r.data);
+
+export const updateNotificationSettings = (payload: UpdateNotificationsPayload) =>
+  api.put<NotificationSettings>('/settings/notifications', payload).then((r) => r.data);
+
+/** Sample "Training completed" email to the saved recipients + the caller. */
+export const sendTrainingSampleEmail = () =>
+  api.post<{ sent: boolean; to: string[]; error: string | null }>('/settings/notifications/test-training').then((r) => r.data);
 
 export const updateSmtpSettings = (payload: UpdateSmtpPayload) =>
   api.put<SmtpSettings>('/settings/smtp', payload).then((r) => r.data);

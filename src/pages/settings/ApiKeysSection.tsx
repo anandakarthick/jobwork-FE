@@ -23,8 +23,9 @@ const PROVIDERS: { id: LlmProviderId; label: string; hint: string }[] = [
 /** Models offered in the dropdowns; "Other…" reveals a free-text field. */
 const CLAUDE_MODELS: { id: string; label: string }[] = [
   { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 — most capable (recommended for quotes)' },
-  { id: 'claude-sonnet-5', label: 'Claude Sonnet 5 — fast, lower cost' },
-  { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 — cheapest, simple tasks' },
+  { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 — half the cost of Opus' },
+  { id: 'claude-sonnet-5', label: 'Claude Sonnet 5 — previous Sonnet' },
+  { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 — cheapest, simple tasks' },
 ];
 const OPENAI_MODELS: { id: string; label: string }[] = [
   { id: 'gpt-5', label: 'GPT-5 — reasoning model' },
@@ -115,6 +116,7 @@ export default function ApiKeysSection() {
   const [anthropicModel, setAnthropicModel] = useState('');
   const [quoteEngine, setQuoteEngine] = useState<QuoteEngine>('database');
   const [anthropicWorkspaceId, setAnthropicWorkspaceId] = useState('');
+  const [pageSearch, setPageSearch] = useState(false);
   const [openaiKey, setOpenaiKey] = useState('');
   const [anthropicKey, setAnthropicKey] = useState('');
   const [openaiBalance, setOpenaiBalance] = useState('');
@@ -136,6 +138,7 @@ export default function ApiKeysSection() {
         setAnthropicModel(s.anthropicModel);
         setQuoteEngine(s.quoteEngine ?? 'database');
         setAnthropicWorkspaceId(s.anthropicWorkspaceId ?? '');
+        setPageSearch(Boolean(s.pageSearch));
         setOpenaiBalance(s.openaiBalance != null ? String(s.openaiBalance) : '');
         setAnthropicBalance(s.anthropicBalance != null ? String(s.anthropicBalance) : '');
         setBalanceCurrency(s.balanceCurrency || 'USD');
@@ -157,6 +160,7 @@ export default function ApiKeysSection() {
         anthropicModel: anthropicModel || undefined,
         quoteEngine,
         anthropicWorkspaceId: anthropicWorkspaceId.trim(),
+        pageSearch,
         openaiApiKey: openaiKey || undefined,
         anthropicApiKey: anthropicKey || undefined,
         openaiBalance: openaiBalance === '' ? null : Number(openaiBalance),
@@ -279,6 +283,33 @@ export default function ApiKeysSection() {
                 <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
                   The Claude knowledge engine needs Claude as the active provider — select it above.
                 </p>
+              )}
+              {quoteEngine === 'claude' && (
+                <div className="mt-4 border-t border-slate-100 pt-4">
+                  <label className="flex items-start gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                      checked={pageSearch}
+                      disabled={!canEdit || settings?.pageSearchAvailable === false}
+                      onChange={(e) => setPageSearch(e.target.checked)}
+                    />
+                    <span>
+                      Send only the matching price-list pages (lower cost)
+                      <span className="mt-0.5 block text-xs text-slate-400">
+                        Each quote sends Claude only the pages of the brand&apos;s price lists that its BOQ and rules
+                        need — found with the page search (PostgreSQL + pgvector) — instead of the whole files. Codes and
+                        prices are still checked against the complete files. A price list is searchable once it has been
+                        trained (Train / Train again); until then the whole files are sent.
+                      </span>
+                    </span>
+                  </label>
+                  {settings?.pageSearchAvailable === false && (
+                    <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      The page-search database is not set up on the server (VECTOR_DATABASE_URL in the backend .env).
+                    </p>
+                  )}
+                </div>
               )}
             </CardBody>
           </Card>

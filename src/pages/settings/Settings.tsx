@@ -2,15 +2,16 @@ import { useState } from 'react';
 import type { ComponentType, SVGProps } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { TILE, type Accent } from '../../lib/colors';
-import { IdIcon, KeyIcon, MailIcon, SlidersIcon } from '../../components/icons';
+import { BellIcon, IdIcon, KeyIcon, MailIcon, SlidersIcon } from '../../components/icons';
 import ProfileSection from './ProfileSection';
 import GeneralSettingsSection from './GeneralSettingsSection';
 import ApiKeysSection from './ApiKeysSection';
 import SmtpSection from './SmtpSection';
 import LetterPadSection from './LetterPadSection';
+import NotificationsSection from './NotificationsSection';
 
 type IconType = ComponentType<SVGProps<SVGSVGElement>>;
-type SectionKey = 'profile' | 'general' | 'smtp' | 'letterpad' | 'apikeys';
+type SectionKey = 'profile' | 'general' | 'smtp' | 'letterpad' | 'notifications' | 'apikeys';
 
 interface Tab {
   key: SectionKey;
@@ -35,6 +36,7 @@ export default function Settings() {
     { key: 'general', label: 'General', hint: 'App name, logo, theme, formats', icon: SlidersIcon, accent: 'violet', show: can('settings.view') },
     { key: 'smtp', label: 'Email (SMTP)', hint: 'Outgoing mail server', icon: MailIcon, accent: 'emerald', show: can('settings.view') },
     { key: 'letterpad', label: 'Email Template', hint: 'Letterhead for sent emails', icon: MailIcon, accent: 'amber', show: can('settings.view') },
+    { key: 'notifications', label: 'Notifications', hint: 'Who gets training emails', icon: BellIcon, accent: 'cyan', show: can('settings.view') },
     { key: 'apikeys', label: 'API Keys', hint: 'AI provider and balance', icon: KeyIcon, accent: 'rose', show: can('apikeys.view') },
   ];
   const visible = tabs.filter((t) => t.show);
@@ -91,6 +93,8 @@ export default function Settings() {
           <SmtpSection />
         ) : current.key === 'letterpad' ? (
           <LetterPadSection />
+        ) : current.key === 'notifications' ? (
+          <NotificationsSection />
         ) : current.key === 'general' ? (
           <GeneralSettingsSection />
         ) : (
