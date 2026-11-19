@@ -92,7 +92,7 @@ export default function CompanyForm() {
     const groupKeys = new Set(groups.map((g) => g.key));
     await saveBrandPrompts(
       companyId,
-      groups.map((g, i) => ({ id: g.id, key: g.key, name: g.name.trim() || `Group ${i + 1}` })),
+      groups.map((g, i) => ({ id: g.id, key: g.key, name: g.name.trim() || `Category ${i + 1}` })),
       rows.map((p) => ({
         id: p.id,
         name: p.name.trim(),

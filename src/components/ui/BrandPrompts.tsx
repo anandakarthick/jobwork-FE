@@ -149,7 +149,7 @@ export default function BrandPrompts({
       }
       setRenaming(null);
     } catch (err) {
-      setError(apiErrorMessage(err, g == null ? 'Could not create the group' : 'Could not rename the group'));
+      setError(apiErrorMessage(err, g == null ? 'Could not create the category' : 'Could not rename the category'));
       setRenaming({ ...renaming, saving: false });
     }
   };
@@ -214,12 +214,12 @@ export default function BrandPrompts({
   };
   const removeGroup = async (g: GroupRow) => {
     const inGroup = rows.filter((r) => r.groupKey === g.key);
-    const label = g.name.trim() || 'this group';
+    const label = g.name.trim() || 'this category';
     if (inGroup.length > 0) {
       const ok = await confirmDialog({
-        title: 'Remove group',
+        title: 'Remove category',
         tone: 'danger',
-        confirmLabel: 'Remove group and rules',
+        confirmLabel: 'Remove category and rules',
         message: `Remove "${label}" and the ${inGroup.length} rule(s) in it? They are deleted when you save the brand.`,
       });
       if (!ok) return;
@@ -429,7 +429,7 @@ export default function BrandPrompts({
   const renderGroup = (g: GroupRow | null, list: PromptRow[], index: number) => {
     const key = g?.key ?? UNGROUPED_KEY;
     const collapsed = collapsedGroups.has(key);
-    const label = g ? g.name.trim() || `Group ${index + 1}` : 'No group';
+    const label = g ? g.name.trim() || `Category ${index + 1}` : 'No category';
     const dup = g != null && dupNames.has(g.name.trim().toLowerCase());
     const canRenameHere = g ? g.id != null && !!onRenameGroup : !!onNameUngrouped;
     return (
@@ -445,17 +445,17 @@ export default function BrandPrompts({
           >
             <ChevronRightIcon className={`h-4 w-4 transition-transform ${collapsed ? '' : 'rotate-90'}`} />
           </button>
-          <Badge tone="violet">Group</Badge>
+          <Badge tone="violet">Category</Badge>
           {g && !readOnly ? (
             <input
               id={`group-name-${g.key}`}
               className={`input w-64 shrink-0 font-medium ${dup ? 'border-red-400' : ''}`}
               value={g.name}
               onChange={(e) => patchGroup(g.key, { name: e.target.value })}
-              placeholder="Group name, e.g. MCCB"
+              placeholder="Category name, e.g. MCCB"
               maxLength={100}
-              aria-label={`Name of group ${index + 1}`}
-              title={dup ? 'Another group has this name' : undefined}
+              aria-label={`Name of category ${index + 1}`}
+              title={dup ? 'Another category has this name' : undefined}
             />
           ) : !g && !readOnly ? (
             /* Edit page: type a name here and these rules become that group. */
@@ -463,10 +463,10 @@ export default function BrandPrompts({
               className="input w-64 shrink-0 font-medium"
               value=""
               onChange={(e) => nameUngroupedInForm(e.target.value)}
-              placeholder="No group — type a name to make one"
+              placeholder="No category — type a name to make one"
               maxLength={100}
-              aria-label="Name a group for the ungrouped rules"
-              title="Typing a name here creates a group and moves these rules into it"
+              aria-label="Name a category for the uncategorised rules"
+              title="Typing a name here creates a category and moves these rules into it"
             />
           ) : renaming?.key === key ? (
             /* View page: rename in place — Enter saves, Escape cancels. */
@@ -477,7 +477,7 @@ export default function BrandPrompts({
                 value={renaming.name}
                 disabled={renaming.saving}
                 maxLength={100}
-                placeholder={g ? 'Group name' : 'Name for these rules, e.g. MCCB'}
+                placeholder={g ? 'Category name' : 'Name for these rules, e.g. MCCB'}
                 onChange={(e) => setRenaming({ ...renaming, name: e.target.value })}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -485,7 +485,7 @@ export default function BrandPrompts({
                     void commitRename(g);
                   } else if (e.key === 'Escape') setRenaming(null);
                 }}
-                aria-label={g ? `New name for ${label}` : 'Group name for the ungrouped rules'}
+                aria-label={g ? `New name for ${label}` : 'Category name for the uncategorised rules'}
               />
               <button
                 type="button"
@@ -507,8 +507,8 @@ export default function BrandPrompts({
                   type="button"
                   onClick={() => (g ? startRename(g) : startRename({ key: UNGROUPED_KEY, name: '' }))}
                   className="text-slate-400 hover:text-brand-600"
-                  aria-label={g ? `Rename ${label}` : 'Name a group for these rules'}
-                  title={g ? 'Rename group' : 'Give these rules a group name'}
+                  aria-label={g ? `Rename ${label}` : 'Name a category for these rules'}
+                  title={g ? 'Rename category' : 'Give these rules a category name'}
                 >
                   <EditIcon className="h-3.5 w-3.5" />
                 </button>
@@ -519,8 +519,8 @@ export default function BrandPrompts({
             {list.length === 0 ? 'No rules yet' : `${list.length} rule${list.length === 1 ? '' : 's'}`}
             {g == null &&
               (readOnly
-                ? ' — created before groups; use the pencil to give them a group name'
-                : ' — created before groups; type a group name on the left, or move each rule with “Move to…”')}
+                ? ' — created before categories; use the pencil to give them a category name'
+                : ' — created before categories; type a category name on the left, or move each rule with “Move to…”')}
           </span>
           {!readOnly && g && (
             <button type="button" onClick={() => addRow(g.key)} className="btn-ghost btn-sm">
@@ -534,7 +534,7 @@ export default function BrandPrompts({
               onClick={() => void removeGroup(g)}
               className="shrink-0 text-slate-400 hover:text-red-600"
               aria-label={`Remove ${label}`}
-              title="Remove group"
+              title="Remove category"
             >
               <TrashIcon className="h-4 w-4" />
             </button>
@@ -544,7 +544,7 @@ export default function BrandPrompts({
           <div className="border-t border-violet-100 px-3 py-2 pl-8">
             {list.length === 0 ? (
               <p className="py-1 text-sm text-slate-400">
-                {readOnly ? 'No rules in this group.' : 'Click “Add rule” to write the first rule of this group.'}
+                {readOnly ? 'No rules in this category.' : 'Click “Add rule” to write the first rule of this category.'}
               </p>
             ) : (
               <ul className="space-y-2">
@@ -556,12 +556,12 @@ export default function BrandPrompts({
                         className="input w-10 shrink-0 self-start px-1 text-xs"
                         value={g.key}
                         onChange={(e) => patch(r.key, { groupKey: e.target.value })}
-                        aria-label="Move rule to group"
-                        title="Move this rule to another group"
+                        aria-label="Move rule to category"
+                        title="Move this rule to another category"
                       >
                         {groups.map((x, gi) => (
                           <option key={x.key} value={x.key}>
-                            {x.name.trim() || `Group ${gi + 1}`}
+                            {x.name.trim() || `Category ${gi + 1}`}
                           </option>
                         ))}
                       </select>
@@ -571,13 +571,13 @@ export default function BrandPrompts({
                         className="input w-28 shrink-0 self-start text-xs"
                         value=""
                         onChange={(e) => e.target.value && patch(r.key, { groupKey: e.target.value })}
-                        aria-label="Add rule to group"
-                        title="Move this rule into a group"
+                        aria-label="Add rule to category"
+                        title="Move this rule into a category"
                       >
                         <option value="">Move to…</option>
                         {groups.map((x, gi) => (
                           <option key={x.key} value={x.key}>
-                            {x.name.trim() || `Group ${gi + 1}`}
+                            {x.name.trim() || `Category ${gi + 1}`}
                           </option>
                         ))}
                       </select>
@@ -619,7 +619,7 @@ export default function BrandPrompts({
             {!readOnly && (
               <button type="button" onClick={addGroup} className="btn-primary btn-sm">
                 <PlusIcon className="h-4 w-4" />
-                Add group
+                Add category
               </button>
             )}
           </div>
@@ -628,7 +628,7 @@ export default function BrandPrompts({
       {error && <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
       {groups.length === 0 && rows.length === 0 ? (
         <p className="py-2 text-sm text-slate-400">
-          {readOnly ? 'No rules added yet.' : 'No groups yet — add a group (e.g. MCCB), then add rules inside it.'}
+          {readOnly ? 'No rules added yet.' : 'No categories yet — add a category (e.g. MCCB), then add rules inside it.'}
         </p>
       ) : (
         <ul className="space-y-3">
@@ -646,8 +646,8 @@ export default function BrandPrompts({
       {!readOnly && (
         <p className="mt-2 text-xs text-slate-400">
           Rules about this brand’s products — series names, trade shorthand, what to prefer, what to
-          replace. First add a <strong>group</strong> (e.g. MCCB, ACB, Accessories), then add rules inside
-          it; a group may hold any number of rules. On Get Quote the same tree is shown — a whole group can
+          replace. First add a <strong>category</strong> (e.g. MCCB, ACB, Accessories), then add rules inside
+          it; a category may hold any number of rules. On Get Quote the same tree is shown — a whole category can
           be ticked or unticked at once, and rules can still be picked one by one. The rules ticked
           <strong> Common</strong> are selected by default, the others start unticked.
           {showTraining && (
